@@ -1,0 +1,11 @@
+/.gradle/
+/.idea/
+/local.properties
+**/build/
+*.iml
+*.jks
+*.keystore
+keystore.properties
+sembulung-release.jks
+private_key*.pem
+*.pk8
