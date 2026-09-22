@@ -153,6 +153,10 @@ public class AisActivity extends Activity {
         });
         root.addView(clear,top(16));
 
+        Button map = button("BUKA MARINE MAP");
+        map.setOnClickListener(v -> startActivity(new android.content.Intent(this, MarineMapActivity.class)));
+        root.addView(map,top(16));
+
         Button back = button("KEMBALI");
         back.setOnClickListener(v -> finish());
         root.addView(back,lp());
