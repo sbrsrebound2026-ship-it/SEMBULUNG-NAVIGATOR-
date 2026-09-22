@@ -14,6 +14,7 @@
 
         <activity android:name=".HomeActivity" android:exported="false" />
         <activity android:name=".NavigationActivity" android:exported="false" />
+        <activity android:name=".OfflineMapActivity" android:exported="false" />
         <activity android:name=".activation.ActivationActivity" android:exported="false" />
 
         <activity

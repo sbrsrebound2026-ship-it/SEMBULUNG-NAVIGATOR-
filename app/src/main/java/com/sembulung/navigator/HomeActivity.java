@@ -42,7 +42,7 @@ public class HomeActivity extends Activity {
         root.addView(nav, lp());
 
         Button maps = button("PETA OFFLINE");
-        maps.setOnClickListener(v -> info("Modul peta offline sedang disiapkan untuk paket chart yang berizin."));
+        maps.setOnClickListener(v -> startActivity(new Intent(this, OfflineMapActivity.class)));
         root.addView(maps, lp());
 
         Button waypoint = button("WAYPOINT & RUTE");
@@ -57,7 +57,7 @@ public class HomeActivity extends Activity {
         code.setPadding(0,dp(28),0,0);
         root.addView(code);
 
-        TextView version = label("SEMBULUNG NAVIGATOR • V8 DEVELOPMENT", 11, false);
+        TextView version = label("SEMBULUNG NAVIGATOR • V9 DEVELOPMENT", 11, false);
         version.setPadding(0,dp(14),0,0);
         root.addView(version);
 
