@@ -9,7 +9,7 @@ on:
         default: false
         type: boolean
   push:
-    branches: [ "main" ]
+    branches: [ "main", "feature/ais-cpa-v12" ]
   pull_request:
     branches: [ "main" ]
 
@@ -32,7 +32,7 @@ jobs:
         run: gradle --no-daemon :app:assembleDebug
       - uses: actions/upload-artifact@v4
         with:
-          name: SEMBULUNG-NAVIGATOR-v11-debug
+          name: SEMBULUNG-NAVIGATOR-v12-debug
           path: app/build/outputs/apk/debug/*.apk
 
   build-release:
@@ -73,7 +73,7 @@ jobs:
         run: sha256sum app/build/outputs/apk/release/*.apk > APK_SHA256.txt
       - uses: actions/upload-artifact@v4
         with:
-          name: SEMBULUNG-NAVIGATOR-v11-release
+          name: SEMBULUNG-NAVIGATOR-v12-release
           path: |
             app/build/outputs/apk/release/*.apk
             APK_SHA256.txt
