@@ -48,6 +48,18 @@ public final class WaypointStore {
     }
 
     public static int activeIndex(Context c){
-        return c.getSharedPreferences(PREFS,Context.MODE_PRIVATE).getInt(ACTIVE,-1);
+        int i=c.getSharedPreferences(PREFS,Context.MODE_PRIVATE).getInt(ACTIVE,-1);
+        int size=load(c).size();
+        return i>=0&&i<size?i:-1;
+    }
+
+    public static void setActiveIndex(Context c,int index){
+        int size=load(c).size();
+        int safe=index>=0&&index<size?index:-1;
+        c.getSharedPreferences(PREFS,Context.MODE_PRIVATE).edit().putInt(ACTIVE,safe).apply();
+    }
+
+    public static void clearActive(Context c){
+        setActiveIndex(c,-1);
     }
 }

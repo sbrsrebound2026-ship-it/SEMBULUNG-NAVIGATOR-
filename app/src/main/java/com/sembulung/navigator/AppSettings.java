@@ -34,4 +34,25 @@ public final class AppSettings {
 
     public static String depthUnit(Context c){return p(c).getString("depth_unit","m");}
     public static void depthUnit(Context c,String v){p(c).edit().putString("depth_unit",v).apply();}
+
+    public static boolean autoAdvanceRoute(Context c){return p(c).getBoolean("route_auto_advance",true);}
+    public static void autoAdvanceRoute(Context c,boolean v){p(c).edit().putBoolean("route_auto_advance",v).apply();}
+
+    public static double arrivalRadiusNm(Context c){
+        try{return Double.parseDouble(p(c).getString("arrival_radius_nm","0.05"));}catch(Exception e){return 0.05;}
+    }
+    public static void arrivalRadiusNm(Context c,double v){p(c).edit().putString("arrival_radius_nm",String.valueOf(v)).apply();}
+
+    public static double offRouteNm(Context c){
+        try{return Double.parseDouble(p(c).getString("off_route_nm","0.15"));}catch(Exception e){return 0.15;}
+    }
+    public static void offRouteNm(Context c,double v){p(c).edit().putString("off_route_nm",String.valueOf(v)).apply();}
+
+    public static boolean shallowAheadWarning(Context c){return p(c).getBoolean("shallow_ahead_warning",true);}
+    public static void shallowAheadWarning(Context c,boolean v){p(c).edit().putBoolean("shallow_ahead_warning",v).apply();}
+
+    public static double lookAheadMinutes(Context c){
+        try{return Double.parseDouble(p(c).getString("look_ahead_minutes","5"));}catch(Exception e){return 5.0;}
+    }
+    public static void lookAheadMinutes(Context c,double v){p(c).edit().putString("look_ahead_minutes",String.valueOf(v)).apply();}
 }

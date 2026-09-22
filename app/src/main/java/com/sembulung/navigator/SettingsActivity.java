@@ -40,6 +40,14 @@ public class SettingsActivity extends Activity {
                 v->AppSettings.distanceUnit(this,v));
         addChoice("Satuan kedalaman",AppSettings.depthUnit(this),new String[]{"m","ft"},
                 v->AppSettings.depthUnit(this,v));
+        addSwitch("Auto lanjut waypoint","Pindah otomatis ke waypoint berikutnya saat radius kedatangan tercapai",
+                AppSettings.autoAdvanceRoute(this),v->AppSettings.autoAdvanceRoute(this,v));
+        addChoice("Radius kedatangan",String.format(java.util.Locale.US,"%.2f NM",AppSettings.arrivalRadiusNm(this)),
+                new String[]{"0.02 NM","0.05 NM","0.10 NM","0.20 NM"},
+                v->{try{AppSettings.arrivalRadiusNm(this,Double.parseDouble(v.split(" ")[0]));}catch(Exception ignored){}});
+        addChoice("Batas keluar rute",String.format(java.util.Locale.US,"%.2f NM",AppSettings.offRouteNm(this)),
+                new String[]{"0.05 NM","0.10 NM","0.15 NM","0.25 NM","0.50 NM"},
+                v->{try{AppSettings.offRouteNm(this,Double.parseDouble(v.split(" ")[0]));}catch(Exception ignored){}});
 
         root.addView(section("SONAR"));
         addSwitch("Aktifkan Sonar Chart","Tampilkan bathymetry hasil sounding pada Marine Map",AppSettings.sonarEnabled(this),
@@ -49,6 +57,11 @@ public class SettingsActivity extends Activity {
         addChoice("Batas dangkal",String.format(java.util.Locale.US,"%.1f m",AppSettings.shallowMeters(this)),
                 new String[]{"2 m","3 m","5 m","10 m","15 m"},
                 v->{try{AppSettings.shallowMeters(this,Double.parseDouble(v.split(" ")[0]));}catch(Exception ignored){}});
+        addSwitch("Peringatan dangkal di depan","Periksa bathymetry Sonar Chart pada jalur beberapa menit ke depan",
+                AppSettings.shallowAheadWarning(this),v->AppSettings.shallowAheadWarning(this,v));
+        addChoice("Look-ahead Sonar Chart",String.format(java.util.Locale.US,"%.0f menit",AppSettings.lookAheadMinutes(this)),
+                new String[]{"2 menit","5 menit","10 menit","15 menit"},
+                v->{try{AppSettings.lookAheadMinutes(this,Double.parseDouble(v.split(" ")[0]));}catch(Exception ignored){}});
 
         root.addView(section("AIS"));
         addSwitch("Aktifkan AIS","Tampilkan target AIS tersimpan/fresh pada peta",AppSettings.aisEnabled(this),
