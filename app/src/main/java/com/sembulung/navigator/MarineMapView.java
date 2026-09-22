@@ -29,6 +29,7 @@ public class MarineMapView extends View {
     private boolean sonarContours=true;
     private boolean sonarSoundings=false;
     private List<WaypointStore.Waypoint> waypoints=new ArrayList<>();
+    private int activeWaypointIndex=-1;
     private List<AisTarget> aisTargets=new ArrayList<>();
     private boolean aisEnabled=true;
     private Double ownSpeedKnots,ownCourseDeg;
@@ -70,7 +71,12 @@ public class MarineMapView extends View {
     public boolean seamarks(){return seamarks;}
 
     public void sonarChart(SonarChartEngine.Chart chart){sonarChart=chart;invalidate();}
-    public void waypoints(List<WaypointStore.Waypoint> v){waypoints=v==null?new ArrayList<>():new ArrayList<>(v);invalidate();}
+    public void waypoints(List<WaypointStore.Waypoint> v){waypoints(v,-1);}
+    public void waypoints(List<WaypointStore.Waypoint> v,int activeIndex){
+        waypoints=v==null?new ArrayList<>():new ArrayList<>(v);
+        activeWaypointIndex=activeIndex>=0&&activeIndex<waypoints.size()?activeIndex:-1;
+        invalidate();
+    }
     public void aisTargets(List<AisTarget> v,boolean enabled){aisTargets=v==null?new ArrayList<>():new ArrayList<>(v);aisEnabled=enabled;invalidate();}
     public void aisOwnShip(Double speedKnots,Double courseDeg){ownSpeedKnots=speedKnots;ownCourseDeg=courseDeg;invalidate();}
     public void focus(double a,double o){clat=cap(a);clon=norm(o);moved=true;if(z<11)z=12;invalidate();}
@@ -164,18 +170,46 @@ public class MarineMapView extends View {
 
     private void drawRouteAndWaypoints(Canvas c){
         if(waypoints==null||waypoints.isEmpty())return;
-        p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(dp(2));p.setColor(0xddffffff);
-        Path path=new Path();boolean first=true;
+
+        p.setStyle(Paint.Style.STROKE);
+        p.setStrokeWidth(dp(2));
+        p.setColor(0xaaffffff);
+        Path path=new Path();
+        boolean first=true;
         for(WaypointStore.Waypoint w:waypoints){
             float[] q=pt(w.lat,w.lon);
             if(first){path.moveTo(q[0],q[1]);first=false;}else path.lineTo(q[0],q[1]);
         }
         c.drawPath(path,p);
-        p.setStyle(Paint.Style.FILL);p.setTextSize(dp(10));p.setTypeface(Typeface.DEFAULT_BOLD);
+
+        if(activeWaypointIndex>=0&&activeWaypointIndex<waypoints.size()){
+            WaypointStore.Waypoint target=waypoints.get(activeWaypointIndex);
+            float[] b=pt(target.lat,target.lon);
+            float[] a;
+            if(activeWaypointIndex>0){
+                WaypointStore.Waypoint start=waypoints.get(activeWaypointIndex-1);
+                a=pt(start.lat,start.lon);
+            }else if(lat!=null&&lon!=null){
+                a=pt(lat,lon);
+            }else a=null;
+            if(a!=null){
+                p.setColor(0xff23d7ff);
+                p.setStrokeWidth(dp(4));
+                c.drawLine(a[0],a[1],b[0],b[1],p);
+            }
+        }
+
+        p.setStyle(Paint.Style.FILL);
+        p.setTextSize(dp(10));
+        p.setTypeface(Typeface.DEFAULT_BOLD);
         for(int i=0;i<waypoints.size();i++){
-            WaypointStore.Waypoint w=waypoints.get(i);float[] q=pt(w.lat,w.lon);
-            p.setColor(i==waypoints.size()-1?0xffff5267:0xffffffff);c.drawCircle(q[0],q[1],dp(6),p);
-            p.setColor(Color.WHITE);c.drawText(w.name,q[0]+dp(8),q[1]-dp(8),p);
+            WaypointStore.Waypoint w=waypoints.get(i);
+            float[] q=pt(w.lat,w.lon);
+            boolean active=i==activeWaypointIndex;
+            p.setColor(active?0xffffb020:0xffffffff);
+            c.drawCircle(q[0],q[1],dp(active?8:5),p);
+            p.setColor(Color.WHITE);
+            c.drawText((active?"▶ ":"")+w.name,q[0]+dp(9),q[1]-dp(8),p);
         }
     }
 
