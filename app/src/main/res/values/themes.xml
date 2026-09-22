@@ -1,0 +1,13 @@
+<resources>
+    <style name="Theme.Sembulung" parent="android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:fontFamily">sans</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:statusBarColor">@color/ocean_deep</item>
+        <item name="android:navigationBarColor">@color/ocean_deep</item>
+        <item name="android:windowActionModeOverlay">true</item>
+    </style>
+    <style name="Theme.Sembulung.Splash" parent="Theme.Sembulung">
+        <item name="android:windowFullscreen">true</item>
+        <item name="android:windowDisablePreview">false</item>
+    </style>
+</resources>
