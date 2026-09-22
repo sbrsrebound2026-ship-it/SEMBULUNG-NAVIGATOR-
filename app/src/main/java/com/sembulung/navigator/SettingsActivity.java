@@ -62,6 +62,13 @@ public class SettingsActivity extends Activity {
         addChoice("Look-ahead Sonar Chart",String.format(java.util.Locale.US,"%.0f menit",AppSettings.lookAheadMinutes(this)),
                 new String[]{"2 menit","5 menit","10 menit","15 menit"},
                 v->{try{AppSettings.lookAheadMinutes(this,Double.parseDouble(v.split(" ")[0]));}catch(Exception ignored){}});
+        addChoice("Interval kontur",String.format(java.util.Locale.US,"%.1f m",AppSettings.contourIntervalMeters(this)),
+                new String[]{"1 m","2 m","5 m","10 m"},
+                v->{try{AppSettings.contourIntervalMeters(this,Double.parseDouble(v.split(" ")[0]));}catch(Exception ignored){}});
+        addChoice("Filter kualitas sounding",
+                "GOOD_ONLY".equals(AppSettings.sonarQualityMode(this))?"Hanya GOOD":"GOOD + QUESTIONABLE",
+                new String[]{"Hanya GOOD","GOOD + QUESTIONABLE"},
+                v->AppSettings.sonarQualityMode(this,"Hanya GOOD".equals(v)?"GOOD_ONLY":"GOOD_AND_QUESTIONABLE"));
 
         root.addView(section("AIS"));
         addSwitch("Aktifkan AIS","Tampilkan target AIS tersimpan/fresh pada peta",AppSettings.aisEnabled(this),
@@ -74,6 +81,13 @@ public class SettingsActivity extends Activity {
         Button nmea=button("KONEKSI SONAR / NMEA");
         nmea.setOnClickListener(v->startActivity(new android.content.Intent(this,NmeaActivity.class)));
         root.addView(nmea,lp());
+        Button survey=button("SONAR SURVEY CENTER");
+        survey.setOnClickListener(v->startActivity(new android.content.Intent(this,SonarSurveyActivity.class)));
+        root.addView(survey,lp());
+        Button diag=button("DIAGNOSTIC");
+        diag.setOnClickListener(v->startActivity(new android.content.Intent(this,DiagnosticActivity.class)));
+        root.addView(diag,lp());
+
         Button ais=button("KONEKSI / TARGET AIS");
         ais.setOnClickListener(v->startActivity(new android.content.Intent(this,AisActivity.class)));
         root.addView(ais,lp());

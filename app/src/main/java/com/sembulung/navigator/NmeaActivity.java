@@ -61,6 +61,10 @@ public class NmeaActivity extends Activity {
                 "$GPRMC,123519,A,0830.000,S,11420.000,E,7.5,84.4,230394,,\n$SDDPT,18.7,0.0,\n$HCHDT,92.5,T"));
         root.addView(demo,lp());
 
+        Button survey=button("SONAR SURVEY CENTER");
+        survey.setOnClickListener(v->startActivity(new Intent(this,SonarSurveyActivity.class)));
+        root.addView(survey,top(14));
+
         Button map=button("BUKA MARINE MAP");map.setOnClickListener(v->startActivity(new Intent(this,MarineMapActivity.class)));root.addView(map,top(14));
         Button clear=button("RESET DATA NMEA");clear.setOnClickListener(v->{NmeaDataStore.clear(this);render();});root.addView(clear,lp());
         Button back=button("KEMBALI");back.setOnClickListener(v->finish());root.addView(back,top(18));

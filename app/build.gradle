@@ -34,8 +34,8 @@ android {
         applicationId 'com.sembulung.navigator'
         minSdk 23
         targetSdk 35
-        versionCode 18
-        versionName '1.0.0-v18'
+        versionCode 19
+        versionName '1.0.0-v19'
     }
 
     signingConfigs {
