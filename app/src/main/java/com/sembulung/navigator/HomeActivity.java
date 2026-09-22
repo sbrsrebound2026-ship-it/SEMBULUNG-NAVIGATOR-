@@ -50,14 +50,14 @@ public class HomeActivity extends Activity {
         root.addView(waypoint, lp());
 
         Button sonar = button("SONAR / NMEA");
-        sonar.setOnClickListener(v -> info("Modul input sonar/NMEA sedang disiapkan."));
+        sonar.setOnClickListener(v -> startActivity(new Intent(this, NmeaActivity.class)));
         root.addView(sonar, lp());
 
         TextView code = label("Device Code\n" + DeviceIdentity.formattedDeviceCode(this), 13, false);
         code.setPadding(0,dp(28),0,0);
         root.addView(code);
 
-        TextView version = label("SEMBULUNG NAVIGATOR • V9 DEVELOPMENT", 11, false);
+        TextView version = label("SEMBULUNG NAVIGATOR • V10 DEVELOPMENT", 11, false);
         version.setPadding(0,dp(14),0,0);
         root.addView(version);
 
