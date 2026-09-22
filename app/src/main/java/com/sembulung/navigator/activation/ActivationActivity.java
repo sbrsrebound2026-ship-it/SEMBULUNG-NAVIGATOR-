@@ -7,6 +7,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.graphics.Color;
 import android.graphics.Typeface;
+import android.net.Uri;
 import android.os.Bundle;
 import android.text.InputType;
 import android.view.Gravity;
@@ -69,6 +70,22 @@ public class ActivationActivity extends Activity {
         });
         root.addView(copy, lp());
 
+        Button whatsapp = button("HUBUNGI ADMIN VIA WHATSAPP");
+        whatsapp.setOnClickListener(v -> {
+            String message = "Halo Admin SEMBULUNG NAVIGATOR.\n" +
+                    "Saya ingin meminta Activation Key.\n" +
+                    "Device Code: " + device + "\n" +
+                    "Mohon dibuatkan key untuk perangkat ini.";
+            String url = "https://wa.me/6281234406456?text=" + Uri.encode(message);
+            openExternal(url);
+        });
+        root.addView(whatsapp, lp());
+
+        Button facebook = button("PROFIL FACEBOOK PENGEMBANG");
+        facebook.setOnClickListener(v ->
+                openExternal("https://www.facebook.com/share/1DZNvHrrQ1/"));
+        root.addView(facebook, lp());
+
         EditText input = new EditText(this);
         input.setHint("Masukkan Activation Key");
         input.setHintTextColor(0xFF9CA3AF);
@@ -107,5 +124,15 @@ public class ActivationActivity extends Activity {
     private Button button(String s){ Button b=new Button(this); b.setText(s); b.setAllCaps(false); return b; }
     private LinearLayout.LayoutParams lp(){ LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,-2); p.setMargins(0,dp(12),0,0); return p; }
     private int dp(int v){ return Math.round(v*getResources().getDisplayMetrics().density); }
+
+    private void openExternal(String url) {
+        try {
+            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+            startActivity(intent);
+        } catch (Exception e) {
+            Toast.makeText(this, "Tautan tidak dapat dibuka", Toast.LENGTH_LONG).show();
+        }
+    }
+
     private void openHome(){ startActivity(new Intent(this, HomeActivity.class)); finish(); }
 }
