@@ -34,8 +34,8 @@ android {
         applicationId 'com.sembulung.navigator'
         minSdk 23
         targetSdk 35
-        versionCode 13
-        versionName '1.0.0-v13'
+        versionCode 14
+        versionName '1.0.0-v14'
     }
 
     signingConfigs {
@@ -69,7 +69,6 @@ android {
         }
     }
 }
-
 
 dependencies {
     testImplementation 'junit:junit:4.13.2'
