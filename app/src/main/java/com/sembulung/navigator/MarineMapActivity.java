@@ -358,7 +358,8 @@ public class MarineMapActivity extends Activity implements LocationListener {
     private void updateTitle(){
         if(title==null)return;
         int count=sonarChart!=null?sonarChart.stats.acceptedSoundings:sonarSamples.size();
-        title.setText("SEMBULUNG MARINE • V16 • "+count+" SOUNDING");
+        MarineServiceState.Snapshot ms=MarineServiceState.read(this);
+        title.setText("SEMBULUNG MARINE • V17 • "+(ms.running?"SERVICE LIVE":"SERVICE OFF")+" • "+count+" SOUNDING");
     }
 
     private void maybeRecordSonar(){
@@ -494,6 +495,12 @@ public class MarineMapActivity extends Activity implements LocationListener {
         return phoneLocation==null?null:phoneLocation.getLongitude();
     }
 
+    private Double currentSpeed(){
+        if(useNmea()&&nmeaSnapshot!=null&&nmeaSnapshot.speed!=null)return nmeaSnapshot.speed;
+        if(sourceMode!=2&&phoneLocation!=null&&phoneLocation.hasSpeed())return (double)(phoneLocation.getSpeed()*1.94384449);
+        return null;
+    }
+
     private Double currentHeading(){
         if(useNmea()&&nmeaSnapshot.headingFresh(FRESH_MS))return nmeaSnapshot.heading;
         if(sourceMode!=2&&phoneLocation!=null&&phoneLocation.hasBearing()){
@@ -540,6 +547,7 @@ public class MarineMapActivity extends Activity implements LocationListener {
                 currentHeading(),
                 useNmea(),
                 AppSettings.autoCenter(this));
+        map.aisOwnShip(currentSpeed(),currentHeading());
 
         loadMapOverlays();
         maybeRecordSonar();
