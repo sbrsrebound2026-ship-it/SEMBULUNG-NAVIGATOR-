@@ -127,15 +127,17 @@ public class MarineMapActivity extends Activity implements LocationListener {
     }
 
     private void menu(){
-        String s=map.seamarks()?"Sembunyikan seamarks":"Tampilkan seamarks";
-        String[] a={s,"Layer Peta","Cari Koordinat","Peta Offline / Download","Sonar / NMEA","AIS • CPA / TCPA","Pengaturan","Dashboard"};
+        String seamarkLabel=map.seamarks()?"Sembunyikan seamarks":"Tampilkan seamarks";
+        String[] items={seamarkLabel,"Layer Peta","Cari Koordinat","Peta Offline / Download","Sonar / NMEA","AIS • CPA / TCPA","Pengaturan","Dashboard"};
         new AlertDialog.Builder(this).setTitle("Marine Map")
-                .setItems(a,(d,w)->{
+                .setItems(items,(d,w)->{
                     if(w==0)map.seamarks(!map.seamarks());
-                    else if(w==1)sonarMenu();
-                    else if(w==2)startActivity(new Intent(this,OfflineMapActivity.class));
-                    else if(w==3)startActivity(new Intent(this,NmeaActivity.class));
-                    else if(w==4)startActivity(new Intent(this,AisActivity.class));
+                    else if(w==1)layerMenu();
+                    else if(w==2)startActivity(new Intent(this,SearchCoordinateActivity.class));
+                    else if(w==3)startActivity(new Intent(this,OfflineMapActivity.class));
+                    else if(w==4)startActivity(new Intent(this,NmeaActivity.class));
+                    else if(w==5)startActivity(new Intent(this,AisActivity.class));
+                    else if(w==6)startActivity(new Intent(this,SettingsActivity.class));
                     else finish();
                 }).show();
     }
@@ -320,14 +322,23 @@ public class MarineMapActivity extends Activity implements LocationListener {
         nmea.setText(live?"NMEA LIVE":"NMEA --");nmea.setAlpha(live?1:.55f);
 
         if(n!=null&&n.depthFresh(F)){
-            depth.setText(String.format(Locale.US,"DEPTH %.1fm",n.depth));depth.setAlpha(1);
+            String unit=AppSettings.depthUnit(this);
+            double value=n.depth;
+            if("ft".equals(unit))value*=3.280839895;
+            depth.setText(String.format(Locale.US,"DEPTH %.1f%s",value,unit));
+            depth.setAlpha(1);
         }else{depth.setText("DEPTH --");depth.setAlpha(.55f);}
 
         source.setText(mode==0?"AUTO":mode==1?"GPS":"NMEA");
         source.setAlpha(mode==2&&!nf()?.55f:1);
 
-        map.vessel(lat(),lon(),hdg(),useN(),true);
-        maybeRecordSonar();
+        map.vessel(lat(),lon(),hdg(),useN(),AppSettings.autoCenter(this));
+        loadMapOverlays();
+        if(sonarEnabled)maybeRecordSonar();
+
+        if(AppSettings.shallowWarning(this)&&n!=null&&n.depthFresh(F)&&n.depth!=null&&n.depth<AppSettings.shallowMeters(this)){
+            depth.setTextColor(0xffff6b6b);
+        }else depth.setTextColor(Color.WHITE);
     }
 
     private void recenter(){
@@ -348,6 +359,9 @@ public class MarineMapActivity extends Activity implements LocationListener {
 
     protected void onResume(){
         super.onResume();
+        applyWindowSettings();
+        applySonarLayers();
+        loadMapOverlays();
         if(lm!=null&&map!=null)startGps();
         h.removeCallbacks(tick);h.post(tick);
     }
