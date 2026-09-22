@@ -6,6 +6,7 @@ import android.view.*;
 import com.sembulung.navigator.sonar.DepthSample;
 import com.sembulung.navigator.sonar.SonarChartEngine;
 import com.sembulung.navigator.ais.AisTarget;
+import com.sembulung.navigator.ais.AisCollisionEngine;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -30,6 +31,7 @@ public class MarineMapView extends View {
     private List<WaypointStore.Waypoint> waypoints=new ArrayList<>();
     private List<AisTarget> aisTargets=new ArrayList<>();
     private boolean aisEnabled=true;
+    private Double ownSpeedKnots,ownCourseDeg;
 
     public MarineMapView(Context c,MarineTileLoader l){
         super(c);
@@ -70,6 +72,7 @@ public class MarineMapView extends View {
     public void sonarChart(SonarChartEngine.Chart chart){sonarChart=chart;invalidate();}
     public void waypoints(List<WaypointStore.Waypoint> v){waypoints=v==null?new ArrayList<>():new ArrayList<>(v);invalidate();}
     public void aisTargets(List<AisTarget> v,boolean enabled){aisTargets=v==null?new ArrayList<>():new ArrayList<>(v);aisEnabled=enabled;invalidate();}
+    public void aisOwnShip(Double speedKnots,Double courseDeg){ownSpeedKnots=speedKnots;ownCourseDeg=courseDeg;invalidate();}
     public void focus(double a,double o){clat=cap(a);clon=norm(o);moved=true;if(z<11)z=12;invalidate();}
 
     public void sonarLayers(boolean enabled,boolean shading,boolean contours,boolean soundings){
@@ -87,6 +90,8 @@ public class MarineMapView extends View {
         if(seamarks)layer(c,MarineTileLoader.LAYER_SEAMARK);
         if(sonarEnabled&&sonarChart!=null&&sonarContours)drawSonarContours(c);
         if(sonarEnabled&&sonarChart!=null&&sonarSoundings)drawSonarSoundings(c);
+        drawRouteAndWaypoints(c);
+        if(aisEnabled)drawAis(c);
         boat(c);
         cross(c);
     }
@@ -181,10 +186,36 @@ public class MarineMapView extends View {
             if(t==null||!t.hasValidPosition()||t.receivedAtMillis<cutoff)continue;
             float[] q=pt(t.latitude,t.longitude);
             if(q[0]<-30||q[0]>getWidth()+30||q[1]<-30||q[1]>getHeight()+30)continue;
+
+            AisCollisionEngine.Assessment assessment=(lat!=null&&lon!=null&&ownSpeedKnots!=null&&ownCourseDeg!=null)
+                    ?AisCollisionEngine.assess(lat,lon,ownSpeedKnots,ownCourseDeg,t)
+                    :new AisCollisionEngine.Assessment(Double.NaN,Double.NaN,Double.NaN,Double.NaN,AisCollisionEngine.Risk.UNKNOWN);
+
             float course=Double.isNaN(t.courseDeg)?0:(float)t.courseDeg;
             Path a=new Path();a.moveTo(q[0],q[1]-dp(9));a.lineTo(q[0]-dp(6),q[1]+dp(7));a.lineTo(q[0]+dp(6),q[1]+dp(7));a.close();
-            p.setColor(0xff47f59a);c.save();c.rotate(course,q[0],q[1]);c.drawPath(a,p);c.restore();
-            p.setColor(Color.WHITE);c.drawText(String.format(java.util.Locale.US,"%09d",t.mmsi),q[0]+dp(8),q[1],p);
+            p.setColor(aisRiskColor(assessment.risk));
+            c.save();c.rotate(course,q[0],q[1]);c.drawPath(a,p);c.restore();
+
+            p.setColor(Color.WHITE);
+            c.drawText(String.format(java.util.Locale.US,"%09d",t.mmsi),q[0]+dp(8),q[1],p);
+
+            if(assessment.risk==AisCollisionEngine.Risk.DANGER||assessment.risk==AisCollisionEngine.Risk.WARNING){
+                String cpa=Double.isNaN(assessment.cpaNm)?"---":String.format(java.util.Locale.US,"%.2fNM",assessment.cpaNm);
+                String tcpa=Double.isNaN(assessment.tcpaMinutes)?"---":String.format(java.util.Locale.US,"%.0fmin",assessment.tcpaMinutes);
+                p.setTextSize(dp(8));
+                c.drawText("CPA "+cpa+" / "+tcpa,q[0]+dp(8),q[1]+dp(11),p);
+                p.setTextSize(dp(9));
+            }
+        }
+    }
+
+    private int aisRiskColor(AisCollisionEngine.Risk risk){
+        switch(risk){
+            case DANGER:return 0xffff4058;
+            case WARNING:return 0xffffa62b;
+            case MONITOR:return 0xff38c9ff;
+            case SAFE:return 0xff47f59a;
+            default:return 0xffc7d4df;
         }
     }
 
