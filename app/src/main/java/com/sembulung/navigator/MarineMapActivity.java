@@ -27,6 +27,7 @@ import com.sembulung.navigator.ais.AisTargetStore;
 import com.sembulung.navigator.sonar.DepthSample;
 import com.sembulung.navigator.sonar.SonarChartEngine;
 import com.sembulung.navigator.sonar.SonarChartStore;
+import com.sembulung.navigator.sonar.SonarHazardEngine;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -50,6 +51,13 @@ public class MarineMapActivity extends Activity implements LocationListener {
     private TextView aisChip;
     private Button sourceButton;
     private Button sonarButton;
+    private TextView routeGuidance;
+    private TextView safetyGuidance;
+    private Button skipWaypointButton;
+    private Button endRouteButton;
+    private int lastArrivalIndex=-2;
+    private long lastArrivalAt=0L;
+    private String lastSafetyKey="";
 
     private int sourceMode=0; // 0 auto, 1 device GPS, 2 NMEA
 
@@ -94,6 +102,7 @@ public class MarineMapActivity extends Activity implements LocationListener {
 
         buildHeader(root);
         buildRightToolbar(root);
+        buildGuidanceOverlay(root);
         buildBottomNavigation(root);
 
         setContentView(root);
@@ -224,8 +233,56 @@ public class MarineMapActivity extends Activity implements LocationListener {
         });
         FrameLayout.LayoutParams sp=new FrameLayout.LayoutParams(dp(86),dp(40));
         sp.gravity=Gravity.START|Gravity.BOTTOM;
-        sp.setMargins(dp(12),0,0,dp(72));
+        sp.setMargins(dp(12),0,0,dp(196));
         root.addView(sourceButton,sp);
+    }
+
+    private void buildGuidanceOverlay(FrameLayout root){
+        LinearLayout panel=new LinearLayout(this);
+        panel.setOrientation(LinearLayout.VERTICAL);
+        panel.setPadding(dp(10),dp(7),dp(10),dp(7));
+        panel.setBackground(bg());
+
+        routeGuidance=chip("NAVIGASI • belum ada tujuan aktif",11,true);
+        routeGuidance.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);
+        panel.addView(routeGuidance,new LinearLayout.LayoutParams(-1,dp(34)));
+
+        safetyGuidance=chip("SAFETY • normal",10,true);
+        safetyGuidance.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);
+        safetyGuidance.setTextColor(0xff8fffc0);
+        panel.addView(safetyGuidance,new LinearLayout.LayoutParams(-1,dp(30)));
+
+        LinearLayout controls=new LinearLayout(this);
+        skipWaypointButton=navButton("LEWATI WP");
+        skipWaypointButton.setOnClickListener(v->skipWaypoint());
+        endRouteButton=navButton("AKHIRI RUTE");
+        endRouteButton.setOnClickListener(v->endRoute());
+        controls.addView(skipWaypointButton,new LinearLayout.LayoutParams(0,dp(34),1f));
+        controls.addView(endRouteButton,new LinearLayout.LayoutParams(0,dp(34),1f));
+        panel.addView(controls,new LinearLayout.LayoutParams(-1,dp(36)));
+
+        FrameLayout.LayoutParams p=new FrameLayout.LayoutParams(-1,dp(108));
+        p.gravity=Gravity.BOTTOM;
+        p.setMargins(dp(8),0,dp(8),dp(70));
+        root.addView(panel,p);
+    }
+
+    private void skipWaypoint(){
+        List<WaypointStore.Waypoint> w=WaypointStore.load(this);
+        int active=WaypointStore.activeIndex(this);
+        if(active<0||active>=w.size())return;
+        int next=active+1<w.size()?active+1:-1;
+        WaypointStore.setActiveIndex(this,next);
+        Toast.makeText(this,next>=0?"Lanjut ke "+w.get(next).name:"Rute selesai",Toast.LENGTH_SHORT).show();
+        loadMapOverlays();
+        updateGuidanceAndSafety();
+    }
+
+    private void endRoute(){
+        WaypointStore.clearActive(this);
+        Toast.makeText(this,"Navigasi rute diakhiri",Toast.LENGTH_SHORT).show();
+        loadMapOverlays();
+        updateGuidanceAndSafety();
     }
 
     private void menu(){layerMenu();}
@@ -335,7 +392,8 @@ public class MarineMapActivity extends Activity implements LocationListener {
 
     private void loadMapOverlays(){
         if(map==null)return;
-        map.waypoints(WaypointStore.load(this));
+        List<WaypointStore.Waypoint> route=WaypointStore.load(this);
+        map.waypoints(route,WaypointStore.activeIndex(this));
         List<AisTarget> targets=AisTargetStore.load(this,120000L);
         map.aisTargets(targets,aisEnabled);
         if(aisChip!=null){
@@ -359,7 +417,7 @@ public class MarineMapActivity extends Activity implements LocationListener {
         if(title==null)return;
         int count=sonarChart!=null?sonarChart.stats.acceptedSoundings:sonarSamples.size();
         MarineServiceState.Snapshot ms=MarineServiceState.read(this);
-        title.setText("SEMBULUNG MARINE • V17 • "+(ms.running?"SERVICE LIVE":"SERVICE OFF")+" • "+count+" SOUNDING");
+        title.setText("SEMBULUNG MARINE • V18 • "+(ms.running?"SERVICE LIVE":"SERVICE OFF")+" • "+count+" SOUNDING");
     }
 
     private void maybeRecordSonar(){
@@ -551,6 +609,7 @@ public class MarineMapActivity extends Activity implements LocationListener {
 
         loadMapOverlays();
         maybeRecordSonar();
+        updateGuidanceAndSafety();
 
         if(AppSettings.shallowWarning(this)
                 &&nmeaSnapshot!=null
@@ -561,6 +620,98 @@ public class MarineMapActivity extends Activity implements LocationListener {
         }else{
             depthChip.setTextColor(Color.WHITE);
         }
+    }
+
+    private void updateGuidanceAndSafety(){
+        if(routeGuidance==null||safetyGuidance==null)return;
+
+        List<WaypointStore.Waypoint> route=WaypointStore.load(this);
+        int active=WaypointStore.activeIndex(this);
+        Double lat=currentLat(),lon=currentLon(),speed=currentSpeed(),course=currentHeading();
+
+        boolean routeActive=active>=0&&active<route.size();
+        skipWaypointButton.setEnabled(routeActive);
+        endRouteButton.setEnabled(routeActive);
+
+        RouteGuidanceEngine.Guidance g=null;
+        if(routeActive&&lat!=null&&lon!=null){
+            g=RouteGuidanceEngine.assess(
+                    lat,lon,speed,route,active,AppSettings.arrivalRadiusNm(this));
+        }
+
+        if(g==null){
+            routeGuidance.setText(routeActive
+                    ?"NAVIGASI • "+route.get(active).name+" • menunggu posisi"
+                    :"NAVIGASI • belum ada tujuan aktif");
+            routeGuidance.setTextColor(Color.WHITE);
+        }else{
+            if(g.arrived){
+                long now=System.currentTimeMillis();
+                if(lastArrivalIndex!=active||now-lastArrivalAt>15000L){
+                    lastArrivalIndex=active;
+                    lastArrivalAt=now;
+                    Toast.makeText(this,"Tiba di "+g.targetName,Toast.LENGTH_SHORT).show();
+                }
+                if(AppSettings.autoAdvanceRoute(this)){
+                    int next=RouteGuidanceEngine.nextIndex(active,route.size(),true,true);
+                    WaypointStore.setActiveIndex(this,next);
+                    if(next>=0){
+                        Toast.makeText(this,"Auto lanjut ke "+route.get(next).name,Toast.LENGTH_SHORT).show();
+                    }else{
+                        Toast.makeText(this,"Rute selesai",Toast.LENGTH_LONG).show();
+                    }
+                    loadMapOverlays();
+                    return;
+                }
+            }
+
+            String xte=Double.isNaN(g.xteNm)?"--":String.format(Locale.US,"%.2f NM",Math.abs(g.xteNm));
+            String eta=Double.isNaN(g.etaMinutes)?"--":formatMinutes(g.etaMinutes);
+            routeGuidance.setText(String.format(Locale.US,
+                    "▶ %s • DTW %.2f NM • BTW %.0f° • XTE %s • ETA %s%s",
+                    g.targetName,g.distanceNm,g.bearingDeg,xte,eta,g.arrived?" • TIBA":""));
+            routeGuidance.setTextColor(g.arrived?0xff8fffc0:Color.WHITE);
+        }
+
+        boolean offRoute=g!=null&&!Double.isNaN(g.xteNm)&&Math.abs(g.xteNm)>AppSettings.offRouteNm(this);
+        SonarHazardEngine.Assessment hazard=SonarHazardEngine.assessAhead(
+                sonarChart,
+                lat==null?0.0:lat,
+                lon==null?0.0:lon,
+                course,
+                speed,
+                AppSettings.shallowMeters(this),
+                AppSettings.lookAheadMinutes(this),
+                60.0);
+
+        StringBuilder safety=new StringBuilder("SAFETY");
+        int severity=0;
+        if(offRoute){
+            severity=Math.max(severity,1);
+            safety.append(String.format(Locale.US," • OFF ROUTE %.2f NM",Math.abs(g.xteNm)));
+        }
+        if(AppSettings.shallowAheadWarning(this)
+                &&(hazard.risk==SonarHazardEngine.Risk.WARNING||hazard.risk==SonarHazardEngine.Risk.DANGER)){
+            severity=Math.max(severity,hazard.risk==SonarHazardEngine.Risk.DANGER?2:1);
+            safety.append(String.format(Locale.US," • SHALLOW AHEAD %.1fm @ %.0fm",
+                    hazard.minimumDepthMeters,hazard.distanceAheadMeters));
+        }
+        if(severity==0)safety.append(" • normal");
+
+        safetyGuidance.setText(safety.toString());
+        safetyGuidance.setTextColor(severity==2?0xffff6575:severity==1?0xffffc04a:0xff8fffc0);
+
+        String key=severity+":"+safety;
+        if(severity>0&&!key.equals(lastSafetyKey)){
+            Toast.makeText(this,safety.toString(),Toast.LENGTH_LONG).show();
+        }
+        lastSafetyKey=key;
+    }
+
+    private String formatMinutes(double minutes){
+        if(!Double.isFinite(minutes)||minutes<0)return "--";
+        long m=Math.round(minutes);
+        return String.format(Locale.US,"%02d:%02d",m/60,m%60);
     }
 
     private void recenter(){
