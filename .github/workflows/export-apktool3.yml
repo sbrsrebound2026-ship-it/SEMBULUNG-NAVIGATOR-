@@ -1,0 +1,25 @@
+name: Export Apktool 3.0.3
+
+on:
+  push:
+    paths:
+      - '.github/workflows/export-apktool3.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download Apktool 3.0.3
+        run: |
+          curl -L --fail --retry 3 -o apktool_3.0.3.jar https://github.com/iBotPeaches/Apktool/releases/download/v3.0.3/apktool_3.0.3.jar
+          echo "dbf930b076c6b9be08d57c449cacefc3bdd6b71ebd59b3066fc0e1f5b14f9423  apktool_3.0.3.jar" | sha256sum -c -
+      - uses: actions/upload-artifact@v4
+        with:
+          name: APKTOOL-3.0.3
+          path: apktool_3.0.3.jar
+          retention-days: 1
