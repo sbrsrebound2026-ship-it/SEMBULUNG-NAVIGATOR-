@@ -27,7 +27,7 @@ public class MarineMapActivity extends Activity implements LocationListener {
     private NmeaDataStore.Snapshot n;
     private MarineTileLoader loader;
     private MarineMapView map;
-    private TextView title,gps,nmea,depth;
+    private TextView title,gps,nmea,depth,ais;
     private Button source,sonarButton;
     private int mode=0;
 
@@ -42,7 +42,7 @@ public class MarineMapActivity extends Activity implements LocationListener {
     private Double lastSoundingLat,lastSoundingLon;
     private int newSoundings=0;
 
-    private boolean sonarEnabled=true;
+    private boolean sonarEnabled=true;\n    private boolean aisEnabled=true;
     private boolean sonarShading=true;
     private boolean sonarContours=true;
     private boolean sonarSoundings=false;
@@ -52,6 +52,7 @@ public class MarineMapActivity extends Activity implements LocationListener {
         getWindow().setStatusBarColor(Color.rgb(3,27,61));
         getWindow().setNavigationBarColor(Color.rgb(3,27,61));
         lm=(LocationManager)getSystemService(LOCATION_SERVICE);
+        applyWindowSettings();
 
         FrameLayout root=new FrameLayout(this);
         loader=new MarineTileLoader(this,()->{if(map!=null)map.postInvalidate();});
@@ -111,6 +112,11 @@ public class MarineMapActivity extends Activity implements LocationListener {
 
         setContentView(root);
 
+        Intent intent=getIntent();
+        if(intent!=null&&intent.hasExtra("focus_lat")&&intent.hasExtra("focus_lon")){
+            map.focus(intent.getDoubleExtra("focus_lat",0),intent.getDoubleExtra("focus_lon",0));
+        }
+
         sonarStore=new SonarChartStore(this);
         sonarSamples.addAll(sonarStore.load(5000));
         applySonarLayers();
@@ -122,7 +128,7 @@ public class MarineMapActivity extends Activity implements LocationListener {
 
     private void menu(){
         String s=map.seamarks()?"Sembunyikan seamarks":"Tampilkan seamarks";
-        String[] a={s,"Sonar Chart Vector","Peta MBTiles lokal","SONAR / NMEA","AIS • CPA / TCPA","Dashboard"};
+        String[] a={s,"Layer Peta","Cari Koordinat","Peta Offline / Download","Sonar / NMEA","AIS • CPA / TCPA","Pengaturan","Dashboard"};
         new AlertDialog.Builder(this).setTitle("Marine Map")
                 .setItems(a,(d,w)->{
                     if(w==0)map.seamarks(!map.seamarks());
@@ -132,6 +138,28 @@ public class MarineMapActivity extends Activity implements LocationListener {
                     else if(w==4)startActivity(new Intent(this,AisActivity.class));
                     else finish();
                 }).show();
+    }
+
+    private void layerMenu(){
+        String[] items={
+                "Sonar Chart: "+(sonarEnabled?"ON":"OFF"),
+                "Depth Shading: "+(sonarShading?"ON":"OFF"),
+                "Contour Vector: "+(sonarContours?"ON":"OFF"),
+                "Angka Sounding: "+(sonarSoundings?"ON":"OFF"),
+                "Seamarks: "+(map.seamarks()?"ON":"OFF"),
+                "AIS Kapal: "+(aisEnabled?"ON":"OFF"),
+                "Waypoint / Rute: ON"
+        };
+        new AlertDialog.Builder(this).setTitle("LAYER PETA").setItems(items,(d,w)->{
+            if(w==0){sonarEnabled=!sonarEnabled;AppSettings.sonarEnabled(this,sonarEnabled);}
+            else if(w==1)sonarShading=!sonarShading;
+            else if(w==2)sonarContours=!sonarContours;
+            else if(w==3)sonarSoundings=!sonarSoundings;
+            else if(w==4)map.seamarks(!map.seamarks());
+            else if(w==5){aisEnabled=!aisEnabled;AppSettings.aisEnabled(this,aisEnabled);}
+            applySonarLayers();
+            loadMapOverlays();
+        }).show();
     }
 
     private void sonarMenu(){
@@ -175,6 +203,25 @@ public class MarineMapActivity extends Activity implements LocationListener {
                     updateSonarTitle();
                     Toast.makeText(this,"Sounding Sonar Chart dihapus",Toast.LENGTH_LONG).show();
                 }).show();
+    }
+
+    private void applyWindowSettings(){
+        if(AppSettings.keepScreenOn(this))getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        else getWindow().clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        sonarEnabled=AppSettings.sonarEnabled(this);
+        aisEnabled=AppSettings.aisEnabled(this);
+    }
+
+    private void loadMapOverlays(){
+        if(map==null)return;
+        map.waypoints(WaypointStore.load(this));
+        java.util.List<com.sembulung.navigator.ais.AisTarget> targets=
+                com.sembulung.navigator.ais.AisTargetStore.load(this,120000L);
+        map.aisTargets(targets,aisEnabled);
+        if(ais!=null){
+            ais.setText(aisEnabled?"AIS "+targets.size():"AIS OFF");
+            ais.setAlpha(aisEnabled?1f:.55f);
+        }
     }
 
     private void applySonarLayers(){
