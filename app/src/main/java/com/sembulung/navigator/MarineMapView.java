@@ -5,6 +5,9 @@ import android.graphics.*;
 import android.view.*;
 import com.sembulung.navigator.sonar.DepthSample;
 import com.sembulung.navigator.sonar.SonarChartEngine;
+import com.sembulung.navigator.ais.AisTarget;
+import java.util.ArrayList;
+import java.util.List;
 
 public class MarineMapView extends View {
     private static final int T=256;
@@ -24,6 +27,9 @@ public class MarineMapView extends View {
     private boolean sonarShading=true;
     private boolean sonarContours=true;
     private boolean sonarSoundings=false;
+    private List<WaypointStore.Waypoint> waypoints=new ArrayList<>();
+    private List<AisTarget> aisTargets=new ArrayList<>();
+    private boolean aisEnabled=true;
 
     public MarineMapView(Context c,MarineTileLoader l){
         super(c);
@@ -62,6 +68,10 @@ public class MarineMapView extends View {
     public boolean seamarks(){return seamarks;}
 
     public void sonarChart(SonarChartEngine.Chart chart){sonarChart=chart;invalidate();}
+    public void waypoints(List<WaypointStore.Waypoint> v){waypoints=v==null?new ArrayList<>():new ArrayList<>(v);invalidate();}
+    public void aisTargets(List<AisTarget> v,boolean enabled){aisTargets=v==null?new ArrayList<>():new ArrayList<>(v);aisEnabled=enabled;invalidate();}
+    public void focus(double a,double o){clat=cap(a);clon=norm(o);moved=true;if(z<11)z=12;invalidate();}
+
     public void sonarLayers(boolean enabled,boolean shading,boolean contours,boolean soundings){
         sonarEnabled=enabled;
         sonarShading=shading;
@@ -145,6 +155,37 @@ public class MarineMapView extends View {
             p.setColor(Color.WHITE);c.drawText(String.format(java.util.Locale.US,"%.1f",s.depthMeters),q[0],q[1]+dp(3),p);
         }
         p.setTextAlign(Paint.Align.LEFT);
+    }
+
+    private void drawRouteAndWaypoints(Canvas c){
+        if(waypoints==null||waypoints.isEmpty())return;
+        p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(dp(2));p.setColor(0xddffffff);
+        Path path=new Path();boolean first=true;
+        for(WaypointStore.Waypoint w:waypoints){
+            float[] q=pt(w.lat,w.lon);
+            if(first){path.moveTo(q[0],q[1]);first=false;}else path.lineTo(q[0],q[1]);
+        }
+        c.drawPath(path,p);
+        p.setStyle(Paint.Style.FILL);p.setTextSize(dp(10));p.setTypeface(Typeface.DEFAULT_BOLD);
+        for(int i=0;i<waypoints.size();i++){
+            WaypointStore.Waypoint w=waypoints.get(i);float[] q=pt(w.lat,w.lon);
+            p.setColor(i==waypoints.size()-1?0xffff5267:0xffffffff);c.drawCircle(q[0],q[1],dp(6),p);
+            p.setColor(Color.WHITE);c.drawText(w.name,q[0]+dp(8),q[1]-dp(8),p);
+        }
+    }
+
+    private void drawAis(Canvas c){
+        p.setTypeface(Typeface.DEFAULT_BOLD);p.setTextSize(dp(9));p.setStyle(Paint.Style.FILL);
+        long cutoff=System.currentTimeMillis()-120000L;
+        for(AisTarget t:aisTargets){
+            if(t==null||!t.hasValidPosition()||t.receivedAtMillis<cutoff)continue;
+            float[] q=pt(t.latitude,t.longitude);
+            if(q[0]<-30||q[0]>getWidth()+30||q[1]<-30||q[1]>getHeight()+30)continue;
+            float course=Double.isNaN(t.courseDeg)?0:(float)t.courseDeg;
+            Path a=new Path();a.moveTo(q[0],q[1]-dp(9));a.lineTo(q[0]-dp(6),q[1]+dp(7));a.lineTo(q[0]+dp(6),q[1]+dp(7));a.close();
+            p.setColor(0xff47f59a);c.save();c.rotate(course,q[0],q[1]);c.drawPath(a,p);c.restore();
+            p.setColor(Color.WHITE);c.drawText(String.format(java.util.Locale.US,"%09d",t.mmsi),q[0]+dp(8),q[1],p);
+        }
     }
 
     private int depthColor(double d){

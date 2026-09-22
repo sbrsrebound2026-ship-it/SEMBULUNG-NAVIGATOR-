@@ -45,6 +45,10 @@ public class HomeActivity extends Activity {
         maps.setOnClickListener(v -> startActivity(new Intent(this, MarineMapActivity.class)));
         root.addView(maps, lp());
 
+        Button search = button("CARI KOORDINAT");
+        search.setOnClickListener(v -> startActivity(new Intent(this, SearchCoordinateActivity.class)));
+        root.addView(search, lp());
+
         Button waypoint = button("WAYPOINT & RUTE");
         waypoint.setOnClickListener(v -> startActivity(new Intent(this, NavigationActivity.class)));
         root.addView(waypoint, lp());
@@ -57,11 +61,15 @@ public class HomeActivity extends Activity {
         ais.setOnClickListener(v -> startActivity(new Intent(this, AisActivity.class)));
         root.addView(ais, lp());
 
+        Button settings = button("PENGATURAN");
+        settings.setOnClickListener(v -> startActivity(new Intent(this, SettingsActivity.class)));
+        root.addView(settings, lp());
+
         TextView code = label("Device Code\n" + DeviceIdentity.formattedDeviceCode(this), 13, false);
         code.setPadding(0,dp(28),0,0);
         root.addView(code);
 
-        TextView version = label("SEMBULUNG NAVIGATOR • V15 SONAR CHART VECTOR", 11, false);
+        TextView version = label("SEMBULUNG NAVIGATOR • V16 UNIFIED MARINE MAP", 11, false);
         version.setPadding(0,dp(14),0,0);
         root.addView(version);
 

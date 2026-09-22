@@ -18,6 +18,7 @@ import android.widget.Toast;
 import com.sembulung.navigator.ais.AisCollisionEngine;
 import com.sembulung.navigator.ais.AisParser;
 import com.sembulung.navigator.ais.AisTarget;
+import com.sembulung.navigator.ais.AisTargetStore;
 
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
@@ -153,6 +154,10 @@ public class AisActivity extends Activity {
         });
         root.addView(clear,top(16));
 
+        Button map = button("BUKA MARINE MAP");
+        map.setOnClickListener(v -> startActivity(new android.content.Intent(this, MarineMapActivity.class)));
+        root.addView(map,top(16));
+
         Button back = button("KEMBALI");
         back.setOnClickListener(v -> finish());
         root.addView(back,lp());
@@ -230,6 +235,7 @@ public class AisActivity extends Activity {
         if(target != null && target.hasValidPosition()) {
             decoded++;
             targets.put(target.mmsi,target);
+            AisTargetStore.upsert(this,target);
         } else {
             rejected++;
         }

@@ -19,6 +19,8 @@
         <activity android:name=".MarineMapActivity" android:exported="false" />
         <activity android:name=".NmeaActivity" android:exported="false" />
         <activity android:name=".AisActivity" android:exported="false" />
+        <activity android:name=".SearchCoordinateActivity" android:exported="false" />
+        <activity android:name=".SettingsActivity" android:exported="false" />
         <activity android:name=".activation.ActivationActivity" android:exported="false" />
 
         <activity
