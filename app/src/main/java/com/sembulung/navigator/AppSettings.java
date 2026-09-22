@@ -55,4 +55,12 @@ public final class AppSettings {
         try{return Double.parseDouble(p(c).getString("look_ahead_minutes","5"));}catch(Exception e){return 5.0;}
     }
     public static void lookAheadMinutes(Context c,double v){p(c).edit().putString("look_ahead_minutes",String.valueOf(v)).apply();}
+
+    public static double contourIntervalMeters(Context c){
+        try{return Double.parseDouble(p(c).getString("contour_interval_m","5"));}catch(Exception e){return 5.0;}
+    }
+    public static void contourIntervalMeters(Context c,double v){p(c).edit().putString("contour_interval_m",String.valueOf(v)).apply();}
+
+    public static String sonarQualityMode(Context c){return p(c).getString("sonar_quality_mode","GOOD_AND_QUESTIONABLE");}
+    public static void sonarQualityMode(Context c,String v){p(c).edit().putString("sonar_quality_mode",v).apply();}
 }
