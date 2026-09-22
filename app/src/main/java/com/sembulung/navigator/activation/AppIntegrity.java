@@ -10,7 +10,7 @@ import java.security.MessageDigest;
 import java.util.Locale;
 
 public final class AppIntegrity {
-    private static final String EXPECTED_CERT_SHA256 = "A59D35A100AA9694708A867764F68384F14CBE84E9892AEA3C9441EB476D31A8";
+    private static final String EXPECTED_CERT_SHA256 = "BADFDF7F8C0031D82CDC20430A29ECD3F6E7D821FEE0478314D1128A6D5E887C";
 
     private AppIntegrity() {}
 
