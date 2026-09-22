@@ -32,8 +32,8 @@ public final class CoordinateParser {
 
     public static Point parseDmsPair(String s){
         Pattern p=Pattern.compile(
-                "(\\d{1,2})[^0-9]+(\\d{1,2})[^0-9]+(\\d{1,2}(?:\\.\\d+)?)\\s*([NS])[^0-9]+"+
-                "(\\d{1,3})[^0-9]+(\\d{1,2})[^0-9]+(\\d{1,2}(?:\\.\\d+)?)\\s*([EW])",
+                "(\\d{1,2})[^0-9]+(\\d{1,2})[^0-9]+(\\d{1,2}(?:\\.\\d+)?)[^0-9A-Z]*([NS])[^0-9]+"+
+                "(\\d{1,3})[^0-9]+(\\d{1,2})[^0-9]+(\\d{1,2}(?:\\.\\d+)?)[^0-9A-Z]*([EW])",
                 Pattern.CASE_INSENSITIVE);
         Matcher m=p.matcher(s);
         if(!m.find())return null;
