@@ -17,7 +17,8 @@ import android.widget.Toast;
 
 import com.sembulung.navigator.ais.AisCollisionEngine;
 import com.sembulung.navigator.ais.AisParser;
-import com.sembulung.navigator.ais.AisTarget;\nimport com.sembulung.navigator.ais.AisTargetStore;
+import com.sembulung.navigator.ais.AisTarget;
+import com.sembulung.navigator.ais.AisTargetStore;
 
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
@@ -233,7 +234,8 @@ public class AisActivity extends Activity {
         AisTarget target = AisParser.parse(sentence);
         if(target != null && target.hasValidPosition()) {
             decoded++;
-            targets.put(target.mmsi,target);\n            AisTargetStore.upsert(this,target);
+            targets.put(target.mmsi,target);
+            AisTargetStore.upsert(this,target);
         } else {
             rejected++;
         }
