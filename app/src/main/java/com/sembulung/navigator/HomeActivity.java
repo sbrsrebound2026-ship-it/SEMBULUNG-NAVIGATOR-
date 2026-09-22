@@ -41,8 +41,8 @@ public class HomeActivity extends Activity {
         nav.setOnClickListener(v -> startActivity(new Intent(this, NavigationActivity.class)));
         root.addView(nav, lp());
 
-        Button maps = button("PETA OFFLINE");
-        maps.setOnClickListener(v -> startActivity(new Intent(this, OfflineMapActivity.class)));
+        Button maps = button("MARINE MAP");
+        maps.setOnClickListener(v -> startActivity(new Intent(this, MarineMapActivity.class)));
         root.addView(maps, lp());
 
         Button waypoint = button("WAYPOINT & RUTE");
@@ -61,7 +61,7 @@ public class HomeActivity extends Activity {
         code.setPadding(0,dp(28),0,0);
         root.addView(code);
 
-        TextView version = label("SEMBULUNG NAVIGATOR • V12 AIS + CPA/TCPA", 11, false);
+        TextView version = label("SEMBULUNG NAVIGATOR • V13 MARINE MAP + AIS", 11, false);
         version.setPadding(0,dp(14),0,0);
         root.addView(version);
 
