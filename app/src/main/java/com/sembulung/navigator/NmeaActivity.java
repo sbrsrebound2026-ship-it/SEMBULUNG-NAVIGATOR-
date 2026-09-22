@@ -157,7 +157,7 @@ public class NmeaActivity extends Activity {
         root.addView(demo,lp());
 
         Button openMap = button("BUKA PETA TERINTEGRASI");
-        openMap.setOnClickListener(v -> startActivity(new Intent(this, OfflineMapActivity.class)));
+        openMap.setOnClickListener(v -> startActivity(new Intent(this, MarineMapActivity.class)));
         root.addView(openMap,lp());
 
         Button clear = button("RESET DATA");
