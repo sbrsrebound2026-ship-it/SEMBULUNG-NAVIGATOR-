@@ -18,21 +18,32 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-      - name: Install Android SDK pieces
+
+      - name: Locate preinstalled Android SDK
         run: |
-          yes | sdkmanager --licenses >/dev/null || true
-          sdkmanager "platforms;android-35" "build-tools;35.0.0"
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          PLATFORM="$(find "$ANDROID_HOME/platforms" -maxdepth 1 -type d -name 'android-*' | sort -V | tail -1)"
+          BT="$(find "$ANDROID_HOME/build-tools" -maxdepth 1 -mindepth 1 -type d | sort -V | tail -1)"
+          test -f "$PLATFORM/android.jar"
+          test -x "$BT/d8"
+          test -x "$BT/zipalign"
+          test -x "$BT/apksigner"
+          echo "PLATFORM=$PLATFORM" >> "$GITHUB_ENV"
+          echo "BT=$BT" >> "$GITHUB_ENV"
+
       - name: Download apktool
         run: |
           mkdir -p patch-tools
           curl -L --fail --retry 3 -o patch-tools/apktool.jar https://bitbucket.org/iBotPeaches/apktool/downloads/apktool_2.10.0.jar
+
       - name: Package required tools
         run: |
           mkdir -p patch-tools/platform patch-tools/build-tools
-          cp "$ANDROID_HOME/platforms/android-35/android.jar" patch-tools/platform/
-          cp -a "$ANDROID_HOME/build-tools/35.0.0/." patch-tools/build-tools/
-          printf '%s\n' 'Android patch tools: apktool 2.10.0, android-35, build-tools 35.0.0' > patch-tools/README.txt
+          cp "$PLATFORM/android.jar" patch-tools/platform/
+          cp -a "$BT/." patch-tools/build-tools/
+          printf '%s\n' 'Android patch tools: apktool 2.10.0 + runner platform/build-tools.' > patch-tools/README.txt
           zip -9 -r ANDROID_PATCH_TOOLS.zip patch-tools >/dev/null
+
       - uses: actions/upload-artifact@v4
         with:
           name: ANDROID-PATCH-TOOLS
