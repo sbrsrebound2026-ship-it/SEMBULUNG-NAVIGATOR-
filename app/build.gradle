@@ -26,6 +26,10 @@ android {
     namespace 'com.sembulung.navigator'
     compileSdk 35
 
+    buildFeatures {
+        buildConfig true
+    }
+
     defaultConfig {
         applicationId 'com.sembulung.navigator'
         minSdk 23
