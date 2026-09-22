@@ -4,6 +4,7 @@ import android.Manifest;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Context;
+import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
@@ -98,6 +99,10 @@ public class NavigationActivity extends Activity implements LocationListener {
         Button addManual = button("TAMBAH WAYPOINT MANUAL");
         addManual.setOnClickListener(v -> showManualWaypointDialog());
         root.addView(addManual, lp());
+
+        Button openMap = button("BUKA MARINE MAP / MULAI NAVIGASI");
+        openMap.setOnClickListener(v -> startActivity(new Intent(this,MarineMapActivity.class)));
+        root.addView(openMap, lp());
 
         Button clearTarget = button("HAPUS TUJUAN AKTIF");
         clearTarget.setOnClickListener(v -> {
