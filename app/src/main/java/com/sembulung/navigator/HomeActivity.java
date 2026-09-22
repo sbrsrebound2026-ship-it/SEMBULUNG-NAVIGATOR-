@@ -53,11 +53,15 @@ public class HomeActivity extends Activity {
         sonar.setOnClickListener(v -> startActivity(new Intent(this, NmeaActivity.class)));
         root.addView(sonar, lp());
 
+        Button ais = button("AIS • CPA / TCPA");
+        ais.setOnClickListener(v -> startActivity(new Intent(this, AisActivity.class)));
+        root.addView(ais, lp());
+
         TextView code = label("Device Code\n" + DeviceIdentity.formattedDeviceCode(this), 13, false);
         code.setPadding(0,dp(28),0,0);
         root.addView(code);
 
-        TextView version = label("SEMBULUNG NAVIGATOR • V11 DEVELOPMENT", 11, false);
+        TextView version = label("SEMBULUNG NAVIGATOR • V12 AIS + CPA/TCPA", 11, false);
         version.setPadding(0,dp(14),0,0);
         root.addView(version);
 

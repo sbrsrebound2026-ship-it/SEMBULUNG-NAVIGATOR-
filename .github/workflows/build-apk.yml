@@ -9,7 +9,7 @@ on:
         default: false
         type: boolean
   push:
-    branches: [ "main" ]
+    branches: [ "main", "feature/ais-cpa-v12" ]
   pull_request:
     branches: [ "main" ]
 
@@ -28,11 +28,13 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
+      - name: Unit tests
+        run: gradle --no-daemon :app:testDebugUnitTest
       - name: Build debug APK
         run: gradle --no-daemon :app:assembleDebug
       - uses: actions/upload-artifact@v4
         with:
-          name: SEMBULUNG-NAVIGATOR-v11-debug
+          name: SEMBULUNG-NAVIGATOR-v12-debug
           path: app/build/outputs/apk/debug/*.apk
 
   build-release:
@@ -53,6 +55,8 @@ jobs:
         run: |
           test -n "$KEYSTORE_B64"
           echo "$KEYSTORE_B64" | base64 --decode > sembulung-release.jks
+      - name: Unit tests
+        run: gradle --no-daemon :app:testDebugUnitTest
       - name: Build signed release APK
         env:
           SEMBULUNG_STORE_FILE: sembulung-release.jks
@@ -73,7 +77,7 @@ jobs:
         run: sha256sum app/build/outputs/apk/release/*.apk > APK_SHA256.txt
       - uses: actions/upload-artifact@v4
         with:
-          name: SEMBULUNG-NAVIGATOR-v11-release
+          name: SEMBULUNG-NAVIGATOR-v12-release
           path: |
             app/build/outputs/apk/release/*.apk
             APK_SHA256.txt
