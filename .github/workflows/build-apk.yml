@@ -1,9 +1,17 @@
-name: Build SEMBULUNG NAVIGATOR V14 RELEASE
+name: Build SEMBULUNG NAVIGATOR V14 APK
 
 on:
+  workflow_dispatch:
+    inputs:
+      build_release:
+        description: 'Build signed release APK using configured release keystore secrets'
+        required: false
+        default: false
+        type: boolean
   push:
     branches: [ "main" ]
-  workflow_dispatch:
+  pull_request:
+    branches: [ "main" ]
 
 permissions:
   contents: read
@@ -22,124 +30,62 @@ jobs:
           gradle-version: '8.9'
       - name: Unit tests
         run: gradle --no-daemon :app:testDebugUnitTest
-      - name: Build debug APK
+      - name: Build V14 debug APK
         run: gradle --no-daemon :app:assembleDebug
       - uses: actions/upload-artifact@v4
         with:
           name: SEMBULUNG-NAVIGATOR-v14-debug
           path: app/build/outputs/apk/debug/*.apk
-          retention-days: 7
+          retention-days: 30
 
   build-release:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.build_release == true }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
-
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
 
-      - name: Generate permanent V14 release signing key
-        shell: bash
+      - name: Restore permanent release keystore
+        env:
+          KEYSTORE_B64: ${{ secrets.SEMBULUNG_KEYSTORE_B64 }}
         run: |
-          set -euo pipefail
-          STORE_PASS="$(openssl rand -hex 24)"
-          KEY_PASS="$STORE_PASS"
-          KEY_ALIAS="sembulung_release"
-          KEYSTORE="sembulung-v14-release.jks"
-
-          keytool -genkeypair -v             -keystore "$KEYSTORE"             -storetype JKS             -alias "$KEY_ALIAS"             -keyalg RSA             -keysize 4096             -validity 10000             -storepass "$STORE_PASS"             -keypass "$KEY_PASS"             -dname "CN=SEMBULUNG NAVIGATOR, OU=BY WONG MBRAYU, O=SEMBULUNG NAVIGATOR, L=Banyuwangi, ST=East Java, C=ID"
-
-          CERT_SHA256="$(keytool -list -v -keystore "$KEYSTORE" -alias "$KEY_ALIAS" -storepass "$STORE_PASS"             | awk -F'SHA256: ' '/SHA256:/{print $2; exit}' | tr -d ':' | tr -d '\r')"
-
-          test -n "$CERT_SHA256"
-
-          {
-            echo "SEMBULUNG_STORE_FILE=$KEYSTORE"
-            echo "SEMBULUNG_STORE_PASSWORD=$STORE_PASS"
-            echo "SEMBULUNG_KEY_ALIAS=$KEY_ALIAS"
-            echo "SEMBULUNG_KEY_PASSWORD=$KEY_PASS"
-            echo "SEMBULUNG_CERT_SHA256=$CERT_SHA256"
-          } >> "$GITHUB_ENV"
-
-          mkdir -p signing-backup
-          cp "$KEYSTORE" signing-backup/
-          {
-            echo "SEMBULUNG NAVIGATOR V14 RELEASE SIGNING KEY"
-            echo "KEEP THIS PACKAGE PRIVATE AND SAFE."
-            echo
-            echo "storeFile=$KEYSTORE"
-            echo "storePassword=$STORE_PASS"
-            echo "keyAlias=$KEY_ALIAS"
-            echo "keyPassword=$KEY_PASS"
-            echo "certificateSHA256=$CERT_SHA256"
-            echo
-            echo "This keystore is required to sign future updates with the same applicationId."
-          } > signing-backup/RELEASE_KEY_CREDENTIALS.txt
-
-      - name: Bind app integrity check to release certificate
-        shell: bash
-        run: |
-          python3 - <<'PY'
-          import os, re
-          from pathlib import Path
-          p = Path("app/src/main/java/com/sembulung/navigator/activation/AppIntegrity.java")
-          s = p.read_text()
-          fp = os.environ["SEMBULUNG_CERT_SHA256"]
-          s2, n = re.subn(
-              r'private static final String EXPECTED_CERT_SHA256 = "[A-F0-9]+";',
-              f'private static final String EXPECTED_CERT_SHA256 = "{fp}";',
-              s
-          )
-          if n != 1:
-              raise SystemExit("Unable to patch release certificate fingerprint")
-          p.write_text(s2)
-          print("Release certificate fingerprint bound to AppIntegrity.java")
-          PY
+          test -n "$KEYSTORE_B64"
+          echo "$KEYSTORE_B64" | base64 --decode > sembulung-v14-release.jks
 
       - name: Unit tests
         run: gradle --no-daemon :app:testDebugUnitTest
 
       - name: Build signed V14 release APK
+        env:
+          SEMBULUNG_STORE_FILE: sembulung-v14-release.jks
+          SEMBULUNG_STORE_PASSWORD: ${{ secrets.SEMBULUNG_STORE_PASSWORD }}
+          SEMBULUNG_KEY_ALIAS: ${{ secrets.SEMBULUNG_KEY_ALIAS }}
+          SEMBULUNG_KEY_PASSWORD: ${{ secrets.SEMBULUNG_KEY_PASSWORD }}
         run: gradle --no-daemon :app:assembleRelease
 
-      - name: Verify APK signature and certificate
-        shell: bash
+      - name: Verify permanent release certificate
         run: |
-          set -euo pipefail
-          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -1)"
-          APK="$(find app/build/outputs/apk/release -name '*.apk' | head -1)"
-          test -n "$APKSIGNER"
-          test -n "$APK"
+          APKSIGNER=$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -1)
+          APK=$(find app/build/outputs/apk/release -name '*.apk' | head -1)
           "$APKSIGNER" verify --verbose --print-certs "$APK" | tee cert.txt
-          ACTUAL="$(grep -i 'certificate SHA-256 digest:' cert.txt | head -1 | sed 's/.*: //' | tr -d ':' | tr '[:lower:]' '[:upper:]')"
-          test "$ACTUAL" = "$SEMBULUNG_CERT_SHA256"
-          cp "$APK" SEMBULUNG_NAVIGATOR_V14_RELEASE.apk
-          sha256sum SEMBULUNG_NAVIGATOR_V14_RELEASE.apk | tee APK_SHA256.txt
+          EXPECTED="BADFDF7F8C0031D82CDC20430A29ECD3F6E7D821FEE0478314D1128A6D5E887C"
+          ACTUAL=$(grep -i 'certificate SHA-256 digest:' cert.txt | head -1 | sed 's/.*: //' | tr -d ':' | tr '[:lower:]' '[:upper:]')
+          test "$ACTUAL" = "$EXPECTED"
 
-      - name: Package release signing backup
-        shell: bash
-        run: |
-          cp cert.txt signing-backup/
-          cp APK_SHA256.txt signing-backup/
-          zip -9 -r SEMBULUNG_NAVIGATOR_V14_RELEASE_SIGNING_KEY_BACKUP.zip signing-backup >/dev/null
+      - name: Generate SHA256
+        run: sha256sum app/build/outputs/apk/release/*.apk > APK_SHA256.txt
 
       - uses: actions/upload-artifact@v4
         with:
-          name: SEMBULUNG-NAVIGATOR-v14-release-apk
+          name: SEMBULUNG-NAVIGATOR-v14-release
           path: |
-            SEMBULUNG_NAVIGATOR_V14_RELEASE.apk
+            app/build/outputs/apk/release/*.apk
             APK_SHA256.txt
             cert.txt
-          retention-days: 7
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: SEMBULUNG-NAVIGATOR-v14-release-signing-key-backup
-          path: SEMBULUNG_NAVIGATOR_V14_RELEASE_SIGNING_KEY_BACKUP.zip
-          retention-days: 1
+          retention-days: 30
