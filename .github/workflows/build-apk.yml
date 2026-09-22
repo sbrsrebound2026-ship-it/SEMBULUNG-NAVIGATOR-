@@ -1,4 +1,4 @@
-name: Build SEMBULUNG NAVIGATOR APK
+name: Build SEMBULUNG NAVIGATOR V14 APK
 
 on:
   workflow_dispatch:
@@ -9,7 +9,7 @@ on:
         default: false
         type: boolean
   push:
-    branches: [ "main", "feature/ais-cpa-v12" ]
+    branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
 
@@ -30,12 +30,17 @@ jobs:
           gradle-version: '8.9'
       - name: Unit tests
         run: gradle --no-daemon :app:testDebugUnitTest
-      - name: Build debug APK
+      - name: Build V14 debug APK
         run: gradle --no-daemon :app:assembleDebug
+      - name: Generate SHA256
+        run: sha256sum app/build/outputs/apk/debug/*.apk > APK_SHA256.txt
       - uses: actions/upload-artifact@v4
         with:
-          name: SEMBULUNG-NAVIGATOR-v12-debug
-          path: app/build/outputs/apk/debug/*.apk
+          name: SEMBULUNG-NAVIGATOR-v14-debug
+          path: |
+            app/build/outputs/apk/debug/*.apk
+            APK_SHA256.txt
+          retention-days: 30
 
   build-release:
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.build_release == true }}
@@ -57,7 +62,7 @@ jobs:
           echo "$KEYSTORE_B64" | base64 --decode > sembulung-release.jks
       - name: Unit tests
         run: gradle --no-daemon :app:testDebugUnitTest
-      - name: Build signed release APK
+      - name: Build signed V14 release APK
         env:
           SEMBULUNG_STORE_FILE: sembulung-release.jks
           SEMBULUNG_STORE_PASSWORD: ${{ secrets.SEMBULUNG_STORE_PASSWORD }}
@@ -77,8 +82,9 @@ jobs:
         run: sha256sum app/build/outputs/apk/release/*.apk > APK_SHA256.txt
       - uses: actions/upload-artifact@v4
         with:
-          name: SEMBULUNG-NAVIGATOR-v12-release
+          name: SEMBULUNG-NAVIGATOR-v14-release
           path: |
             app/build/outputs/apk/release/*.apk
             APK_SHA256.txt
             cert.txt
+          retention-days: 30
