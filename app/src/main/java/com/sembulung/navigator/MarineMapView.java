@@ -1,21 +1,254 @@
 package com.sembulung.navigator;
+
 import android.content.Context;
 import android.graphics.*;
 import android.view.*;
-public class MarineMapView extends View{
- private static final int T=256; private final Paint p=new Paint(1); private final MarineTileLoader l; private final ScaleGestureDetector s;
- private int z=5; private double clat=-2.5,clon=118; private Double lat,lon,hdg; private boolean nmea,seamarks=true,moved=false; private float lx,ly; private boolean drag;
- public MarineMapView(Context c,MarineTileLoader l){super(c);this.l=l;setBackgroundColor(Color.rgb(16,52,70));s=new ScaleGestureDetector(c,new ScaleGestureDetector.SimpleOnScaleGestureListener(){float a;public boolean onScaleBegin(ScaleGestureDetector d){a=d.getCurrentSpan();return true;}public boolean onScale(ScaleGestureDetector d){float r=d.getCurrentSpan()/Math.max(1,a);if(r>1.25f){zoom(1);a=d.getCurrentSpan();}else if(r<.8f){zoom(-1);a=d.getCurrentSpan();}moved=true;return true;}});}
- public void vessel(Double a,Double o,Double h,boolean n,boolean center){lat=a;lon=o;hdg=h;nmea=n;if(center&&!moved&&a!=null&&o!=null){if(z<11)z=12;clat=cap(a);clon=norm(o);}invalidate();}
- public void recenter(){if(lat!=null&&lon!=null){moved=false;clat=cap(lat);clon=norm(lon);invalidate();}}
- public void zoom(int d){z=Math.max(3,Math.min(18,z+d));invalidate();} public void seamarks(boolean v){seamarks=v;invalidate();} public boolean seamarks(){return seamarks;}
- protected void onDraw(Canvas c){super.onDraw(c);layer(c,MarineTileLoader.LAYER_OSM);if(seamarks)layer(c,MarineTileLoader.LAYER_SEAMARK);boat(c);cross(c);}
- private void layer(Canvas c,String q){double cx=wx(clon),cy=wy(clat),L=cx-getWidth()/2d,U=cy-getHeight()/2d;int n=1<<z,x0=(int)Math.floor(L/T),x1=(int)Math.floor((L+getWidth())/T),y0=(int)Math.floor(U/T),y1=(int)Math.floor((U+getHeight())/T);for(int y=y0;y<=y1;y++){if(y<0||y>=n)continue;for(int x=x0;x<=x1;x++){int xx=((x%n)+n)%n;Bitmap b=l.get(q,z,xx,y);float dx=(float)(x*T-L),dy=(float)(y*T-U);if(b!=null)c.drawBitmap(b,null,new RectF(dx,dy,dx+T,dy+T),p);else if(q.equals(MarineTileLoader.LAYER_OSM)){p.setColor(((x+y)&1)==0?Color.rgb(20,57,72):Color.rgb(24,65,80));c.drawRect(dx,dy,dx+T,dy+T,p);}}}}
- private void boat(Canvas c){if(lat==null||lon==null)return;float[] q=pt(lat,lon);float h=hdg==null?0:hdg.floatValue();Path b=new Path();b.moveTo(q[0],q[1]-dp(15));b.lineTo(q[0]-dp(9),q[1]+dp(11));b.lineTo(q[0],q[1]+dp(6));b.lineTo(q[0]+dp(9),q[1]+dp(11));b.close();p.setColor(nmea?0xffff4bc1:0xff24d8ff);c.save();c.rotate(h,q[0],q[1]);c.drawPath(b,p);c.restore();p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(dp(2));p.setColor(Color.WHITE);c.drawCircle(q[0],q[1],dp(17),p);p.setStyle(Paint.Style.FILL);}
- private void cross(Canvas c){float x=getWidth()/2f,y=getHeight()/2f;p.setColor(0x55ffffff);p.setStrokeWidth(dp(1));c.drawLine(x-dp(7),y,x+dp(7),y,p);c.drawLine(x,y-dp(7),x,y+dp(7),p);}
- private float[] pt(double a,double o){double cx=wx(clon),cy=wy(clat),x=wx(o),y=wy(a),w=T*(double)(1<<z),d=x-cx;if(d>w/2)d-=w;if(d<-w/2)d+=w;return new float[]{(float)(getWidth()/2d+d),(float)(getHeight()/2d+y-cy)};}
- public boolean onTouchEvent(MotionEvent e){s.onTouchEvent(e);if(s.isInProgress())return true;switch(e.getActionMasked()){case 0:lx=e.getX();ly=e.getY();drag=true;return true;case 2:if(!drag)return true;float dx=e.getX()-lx,dy=e.getY()-ly;lx=e.getX();ly=e.getY();clon=lon(wx(clon)-dx);clat=lat(wy(clat)-dy);moved=true;invalidate();return true;case 1:case 3:drag=false;return true;}return true;}
- private double wx(double o){double w=T*(double)(1<<z);return(norm(o)+180)/360*w;} private double wy(double a){a=cap(a);double s=Math.sin(Math.toRadians(a)),w=T*(double)(1<<z);return(.5-Math.log((1+s)/(1-s))/(4*Math.PI))*w;}
- private double lon(double x){double w=T*(double)(1<<z);x=((x%w)+w)%w;return x/w*360-180;} private double lat(double y){double w=T*(double)(1<<z);y=Math.max(0,Math.min(w,y));return Math.toDegrees(Math.atan(Math.sinh(Math.PI-2*Math.PI*y/w)));}
- private double cap(double a){return Math.max(-85.05112878,Math.min(85.05112878,a));} private double norm(double o){double r=o%360;if(r>180)r-=360;if(r<-180)r+=360;return r;} private int dp(int v){return Math.round(v*getResources().getDisplayMetrics().density);}
+
+import com.sembulung.navigator.sonar.SonarChartSnapshot;
+
+import java.util.Locale;
+
+public class MarineMapView extends View {
+    private static final int T = 256;
+    private final Paint p = new Paint(1);
+    private final MarineTileLoader l;
+    private final ScaleGestureDetector s;
+
+    private int z = 5;
+    private double clat = -2.5, clon = 118;
+    private Double lat, lon, hdg;
+    private boolean nmea, seamarks = true, moved = false;
+    private float lx, ly;
+    private boolean drag;
+
+    private SonarChartSnapshot sonar = SonarChartSnapshot.empty(15.0, 2.0);
+    private boolean sonarEnabled = true;
+    private boolean sonarShading = true;
+    private boolean sonarContours = true;
+    private boolean sonarSoundings = false;
+
+    public MarineMapView(Context c, MarineTileLoader l) {
+        super(c);
+        this.l = l;
+        setBackgroundColor(Color.rgb(16, 52, 70));
+        s = new ScaleGestureDetector(c, new ScaleGestureDetector.SimpleOnScaleGestureListener() {
+            float a;
+            public boolean onScaleBegin(ScaleGestureDetector d) {
+                a = d.getCurrentSpan();
+                return true;
+            }
+            public boolean onScale(ScaleGestureDetector d) {
+                float r = d.getCurrentSpan() / Math.max(1, a);
+                if (r > 1.25f) {
+                    zoom(1);
+                    a = d.getCurrentSpan();
+                } else if (r < .8f) {
+                    zoom(-1);
+                    a = d.getCurrentSpan();
+                }
+                moved = true;
+                return true;
+            }
+        });
+    }
+
+    public void vessel(Double a, Double o, Double h, boolean n, boolean center) {
+        lat = a;
+        lon = o;
+        hdg = h;
+        nmea = n;
+        if (center && !moved && a != null && o != null) {
+            if (z < 11) z = 12;
+            clat = cap(a);
+            clon = norm(o);
+        }
+        invalidate();
+    }
+
+    public void recenter() {
+        if (lat != null && lon != null) {
+            moved = false;
+            clat = cap(lat);
+            clon = norm(lon);
+            invalidate();
+        }
+    }
+
+    public void zoom(int d) {
+        z = Math.max(3, Math.min(18, z + d));
+        invalidate();
+    }
+
+    public void seamarks(boolean v) { seamarks = v; invalidate(); }
+    public boolean seamarks() { return seamarks; }
+
+    public void sonarChart(SonarChartSnapshot snapshot) {
+        sonar = snapshot == null ? SonarChartSnapshot.empty(15.0, 2.0) : snapshot;
+        invalidate();
+    }
+
+    public void sonarEnabled(boolean v) { sonarEnabled = v; invalidate(); }
+    public boolean sonarEnabled() { return sonarEnabled; }
+    public void sonarShading(boolean v) { sonarShading = v; invalidate(); }
+    public boolean sonarShading() { return sonarShading; }
+    public void sonarContours(boolean v) { sonarContours = v; invalidate(); }
+    public boolean sonarContours() { return sonarContours; }
+    public void sonarSoundings(boolean v) { sonarSoundings = v; invalidate(); }
+    public boolean sonarSoundings() { return sonarSoundings; }
+
+    @Override protected void onDraw(Canvas c) {
+        super.onDraw(c);
+        layer(c, MarineTileLoader.LAYER_OSM);
+        if (seamarks) layer(c, MarineTileLoader.LAYER_SEAMARK);
+        drawSonarChart(c);
+        boat(c);
+        cross(c);
+    }
+
+    private void drawSonarChart(Canvas c) {
+        if (!sonarEnabled || sonar == null || sonar.cells.isEmpty()) return;
+
+        if (sonarShading) {
+            p.setStyle(Paint.Style.FILL);
+            for (SonarChartSnapshot.Cell cell : sonar.cells) {
+                float[] a = pt(cell.minLat, cell.minLon);
+                float[] b = pt(cell.maxLat, cell.maxLon);
+                float left = Math.min(a[0], b[0]);
+                float right = Math.max(a[0], b[0]);
+                float top = Math.min(a[1], b[1]);
+                float bottom = Math.max(a[1], b[1]);
+                p.setColor(depthColor(cell.depthMeters));
+                c.drawRect(left, top, right, bottom, p);
+            }
+        }
+
+        if (sonarContours && !sonar.contours.isEmpty()) {
+            p.setStyle(Paint.Style.STROKE);
+            p.setStrokeWidth(dp(2));
+            p.setColor(0xdd20e6ff);
+            int index = 0;
+            for (SonarChartSnapshot.ContourSegment seg : sonar.contours) {
+                float[] a = pt(seg.lat1, seg.lon1);
+                float[] b = pt(seg.lat2, seg.lon2);
+                c.drawLine(a[0], a[1], b[0], b[1], p);
+                if ((index++ % 14) == 0 && z >= 13) {
+                    p.setStyle(Paint.Style.FILL);
+                    p.setTextSize(dp(9));
+                    p.setColor(0xffd8fbff);
+                    c.drawText(String.format(Locale.US, "%.0fm", seg.depthMeters),
+                            (a[0] + b[0]) / 2f, (a[1] + b[1]) / 2f, p);
+                    p.setStyle(Paint.Style.STROKE);
+                    p.setStrokeWidth(dp(2));
+                    p.setColor(0xdd20e6ff);
+                }
+            }
+        }
+
+        if (sonarSoundings && z >= 14) {
+            p.setStyle(Paint.Style.FILL);
+            p.setColor(0xfff1fdff);
+            p.setTextSize(dp(9));
+            int step = Math.max(1, sonar.cells.size() / 160);
+            for (int i = 0; i < sonar.cells.size(); i += step) {
+                SonarChartSnapshot.Cell cell = sonar.cells.get(i);
+                float[] q = pt(cell.centerLat, cell.centerLon);
+                c.drawText(String.format(Locale.US, "%.1f", cell.depthMeters), q[0], q[1], p);
+            }
+        }
+
+        p.setStyle(Paint.Style.FILL);
+    }
+
+    private int depthColor(double depth) {
+        if (depth < 3.0) return 0x88ff3344;
+        if (depth < 5.0) return 0x88ff8a28;
+        if (depth < 10.0) return 0x887ddfdb;
+        if (depth < 20.0) return 0x8860c8ff;
+        if (depth < 30.0) return 0x885082e8;
+        return 0x884044aa;
+    }
+
+    private void layer(Canvas c, String q) {
+        double cx = wx(clon), cy = wy(clat), L = cx - getWidth()/2d, U = cy - getHeight()/2d;
+        int n = 1 << z, x0 = (int)Math.floor(L/T), x1 = (int)Math.floor((L+getWidth())/T),
+                y0 = (int)Math.floor(U/T), y1 = (int)Math.floor((U+getHeight())/T);
+        for (int y = y0; y <= y1; y++) {
+            if (y < 0 || y >= n) continue;
+            for (int x = x0; x <= x1; x++) {
+                int xx = ((x % n) + n) % n;
+                Bitmap b = l.get(q, z, xx, y);
+                float dx = (float)(x*T-L), dy = (float)(y*T-U);
+                if (b != null) c.drawBitmap(b, null, new RectF(dx,dy,dx+T,dy+T), p);
+                else if (q.equals(MarineTileLoader.LAYER_OSM)) {
+                    p.setColor(((x+y)&1)==0 ? Color.rgb(20,57,72) : Color.rgb(24,65,80));
+                    c.drawRect(dx,dy,dx+T,dy+T,p);
+                }
+            }
+        }
+    }
+
+    private void boat(Canvas c) {
+        if (lat == null || lon == null) return;
+        float[] q = pt(lat,lon);
+        float h = hdg == null ? 0 : hdg.floatValue();
+        Path b = new Path();
+        b.moveTo(q[0],q[1]-dp(15));
+        b.lineTo(q[0]-dp(9),q[1]+dp(11));
+        b.lineTo(q[0],q[1]+dp(6));
+        b.lineTo(q[0]+dp(9),q[1]+dp(11));
+        b.close();
+        p.setColor(nmea ? 0xffff4bc1 : 0xff24d8ff);
+        c.save();
+        c.rotate(h,q[0],q[1]);
+        c.drawPath(b,p);
+        c.restore();
+        p.setStyle(Paint.Style.STROKE);
+        p.setStrokeWidth(dp(2));
+        p.setColor(Color.WHITE);
+        c.drawCircle(q[0],q[1],dp(17),p);
+        p.setStyle(Paint.Style.FILL);
+    }
+
+    private void cross(Canvas c) {
+        float x=getWidth()/2f,y=getHeight()/2f;
+        p.setColor(0x55ffffff);
+        p.setStrokeWidth(dp(1));
+        c.drawLine(x-dp(7),y,x+dp(7),y,p);
+        c.drawLine(x,y-dp(7),x,y+dp(7),p);
+    }
+
+    private float[] pt(double a,double o) {
+        double cx=wx(clon),cy=wy(clat),x=wx(o),y=wy(a),w=T*(double)(1<<z),d=x-cx;
+        if(d>w/2)d-=w;
+        if(d<-w/2)d+=w;
+        return new float[]{(float)(getWidth()/2d+d),(float)(getHeight()/2d+y-cy)};
+    }
+
+    @Override public boolean onTouchEvent(MotionEvent e) {
+        s.onTouchEvent(e);
+        if(s.isInProgress()) return true;
+        switch(e.getActionMasked()){
+            case 0: lx=e.getX();ly=e.getY();drag=true;return true;
+            case 2:
+                if(!drag)return true;
+                float dx=e.getX()-lx,dy=e.getY()-ly;
+                lx=e.getX();ly=e.getY();
+                clon=lon(wx(clon)-dx);
+                clat=lat(wy(clat)-dy);
+                moved=true;
+                invalidate();
+                return true;
+            case 1:
+            case 3: drag=false;return true;
+        }
+        return true;
+    }
+
+    private double wx(double o){double w=T*(double)(1<<z);return(norm(o)+180)/360*w;}
+    private double wy(double a){a=cap(a);double s=Math.sin(Math.toRadians(a)),w=T*(double)(1<<z);return(.5-Math.log((1+s)/(1-s))/(4*Math.PI))*w;}
+    private double lon(double x){double w=T*(double)(1<<z);x=((x%w)+w)%w;return x/w*360-180;}
+    private double lat(double y){double w=T*(double)(1<<z);y=Math.max(0,Math.min(w,y));return Math.toDegrees(Math.atan(Math.sinh(Math.PI-2*Math.PI*y/w)));}
+    private double cap(double a){return Math.max(-85.05112878,Math.min(85.05112878,a));}
+    private double norm(double o){double r=o%360;if(r>180)r-=360;if(r<-180)r+=360;return r;}
+    private int dp(int v){return Math.round(v*getResources().getDisplayMetrics().density);}
 }
