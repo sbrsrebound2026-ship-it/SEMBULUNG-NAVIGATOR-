@@ -32,7 +32,7 @@ jobs:
         run: gradle --no-daemon :app:assembleDebug
       - uses: actions/upload-artifact@v4
         with:
-          name: SEMBULUNG-NAVIGATOR-v7-debug
+          name: SEMBULUNG-NAVIGATOR-v8-debug
           path: app/build/outputs/apk/debug/*.apk
 
   build-release:
@@ -73,7 +73,7 @@ jobs:
         run: sha256sum app/build/outputs/apk/release/*.apk > APK_SHA256.txt
       - uses: actions/upload-artifact@v4
         with:
-          name: SEMBULUNG-NAVIGATOR-v7-release
+          name: SEMBULUNG-NAVIGATOR-v8-release
           path: |
             app/build/outputs/apk/release/*.apk
             APK_SHA256.txt

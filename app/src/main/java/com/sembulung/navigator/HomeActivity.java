@@ -46,7 +46,7 @@ public class HomeActivity extends Activity {
         root.addView(maps, lp());
 
         Button waypoint = button("WAYPOINT & RUTE");
-        waypoint.setOnClickListener(v -> info("Modul waypoint/rute akan menjadi tahap berikutnya."));
+        waypoint.setOnClickListener(v -> startActivity(new Intent(this, NavigationActivity.class)));
         root.addView(waypoint, lp());
 
         Button sonar = button("SONAR / NMEA");
@@ -57,7 +57,7 @@ public class HomeActivity extends Activity {
         code.setPadding(0,dp(28),0,0);
         root.addView(code);
 
-        TextView version = label("SEMBULUNG NAVIGATOR • V7 DEVELOPMENT", 11, false);
+        TextView version = label("SEMBULUNG NAVIGATOR • V8 DEVELOPMENT", 11, false);
         version.setPadding(0,dp(14),0,0);
         root.addView(version);
 
