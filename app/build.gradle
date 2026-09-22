@@ -1,0 +1,67 @@
+plugins {
+    id 'com.android.application'
+}
+
+import java.util.Properties
+
+def keystoreProps = new Properties()
+def keystorePropsFile = rootProject.file('keystore.properties')
+if (keystorePropsFile.exists()) {
+    keystorePropsFile.withInputStream { keystoreProps.load(it) }
+}
+
+def propOrEnv = { String propName, String envName ->
+    def v = keystoreProps.getProperty(propName)
+    if (v == null || v.trim().isEmpty()) v = System.getenv(envName)
+    return v
+}
+
+def releaseStoreFile = propOrEnv('storeFile', 'SEMBULUNG_STORE_FILE')
+def releaseStorePassword = propOrEnv('storePassword', 'SEMBULUNG_STORE_PASSWORD')
+def releaseKeyAlias = propOrEnv('keyAlias', 'SEMBULUNG_KEY_ALIAS')
+def releaseKeyPassword = propOrEnv('keyPassword', 'SEMBULUNG_KEY_PASSWORD')
+def hasReleaseKey = releaseStoreFile && releaseStorePassword && releaseKeyAlias && releaseKeyPassword && rootProject.file(releaseStoreFile).exists()
+
+android {
+    namespace 'com.sembulung.navigator'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId 'com.sembulung.navigator'
+        minSdk 23
+        targetSdk 35
+        versionCode 5
+        versionName '1.0.0-v5'
+    }
+
+    signingConfigs {
+        if (hasReleaseKey) {
+            release {
+                storeFile rootProject.file(releaseStoreFile)
+                storePassword releaseStorePassword
+                keyAlias releaseKeyAlias
+                keyPassword releaseKeyPassword
+                enableV1Signing true
+                enableV2Signing true
+                enableV3Signing true
+                enableV4Signing true
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            shrinkResources false
+            if (hasReleaseKey) {
+                signingConfig signingConfigs.release
+            } else {
+                logger.warn('Release keystore not configured: release APK will be unsigned.')
+            }
+        }
+        debug {
+            applicationIdSuffix '.debug'
+            versionNameSuffix '-debug'
+        }
+    }
+}
