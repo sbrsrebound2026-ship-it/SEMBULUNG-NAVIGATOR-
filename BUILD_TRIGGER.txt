@@ -1,1 +1,2 @@
 Trigger GitHub Actions debug build for SEMBULUNG NAVIGATOR V5.
+Actions enabled by user.
