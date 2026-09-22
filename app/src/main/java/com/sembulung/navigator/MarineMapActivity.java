@@ -28,6 +28,8 @@ import com.sembulung.navigator.sonar.DepthSample;
 import com.sembulung.navigator.sonar.SonarChartEngine;
 import com.sembulung.navigator.sonar.SonarChartStore;
 import com.sembulung.navigator.sonar.SonarHazardEngine;
+import com.sembulung.navigator.sonar.SonarSampleFilter;
+import com.sembulung.navigator.sonar.SonarSessionStore;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -70,6 +72,7 @@ public class MarineMapActivity extends Activity implements LocationListener {
     };
 
     private SonarChartStore sonarStore;
+    private SonarSessionStore sonarSessions;
     private final ArrayList<DepthSample> sonarSamples=new ArrayList<>();
     private SonarChartEngine.Chart sonarChart;
     private final AtomicBoolean chartBuilding=new AtomicBoolean(false);
@@ -115,6 +118,7 @@ public class MarineMapActivity extends Activity implements LocationListener {
         }
 
         sonarStore=new SonarChartStore(this);
+        sonarSessions=new SonarSessionStore(this);
         sonarSamples.addAll(sonarStore.load(5000));
         applySonarLayers();
         loadMapOverlays();
@@ -336,6 +340,7 @@ public class MarineMapActivity extends Activity implements LocationListener {
                 "Contour Vector: "+(sonarContours?"ON":"OFF"),
                 "Soundings: "+(sonarSoundings?"ON":"OFF"),
                 "Bangun Ulang Kontur",
+                "Survey Center / Data Sonar",
                 "Hapus Semua Sounding"
         };
 
@@ -355,6 +360,8 @@ public class MarineMapActivity extends Activity implements LocationListener {
                     }else if(w==4){
                         rebuildSonarChart();
                     }else if(w==5){
+                        startActivity(new Intent(this,SonarSurveyActivity.class));
+                    }else if(w==6){
                         confirmClearSonar();
                     }
                     applySonarLayers();
@@ -417,7 +424,7 @@ public class MarineMapActivity extends Activity implements LocationListener {
         if(title==null)return;
         int count=sonarChart!=null?sonarChart.stats.acceptedSoundings:sonarSamples.size();
         MarineServiceState.Snapshot ms=MarineServiceState.read(this);
-        title.setText("SEMBULUNG MARINE • V18 • "+(ms.running?"SERVICE LIVE":"SERVICE OFF")+" • "+count+" SOUNDING");
+        title.setText("SEMBULUNG MARINE • V19 • "+(ms.running?"SERVICE LIVE":"SERVICE OFF")+" • "+count+" SOUNDING");
     }
 
     private void maybeRecordSonar(){
@@ -458,6 +465,7 @@ public class MarineMapActivity extends Activity implements LocationListener {
 
         try{
             sonarStore.append(sample);
+            if(sonarSessions!=null)sonarSessions.append(sample);
             sonarSamples.add(sample);
             if(sonarSamples.size()>5000)sonarSamples.remove(0);
             lastSoundingLat=nmeaSnapshot.lat;
@@ -475,11 +483,12 @@ public class MarineMapActivity extends Activity implements LocationListener {
 
     private void rebuildSonarChart(){
         if(!chartBuilding.compareAndSet(false,true))return;
-        final ArrayList<DepthSample> copy=new ArrayList<>(sonarSamples);
+        final ArrayList<DepthSample> copy=new ArrayList<>(
+                SonarSampleFilter.apply(sonarSamples,AppSettings.sonarQualityMode(this)));
 
         new Thread(()->{
             try{
-                SonarChartEngine.Chart chart=SonarChartEngine.build(copy,20.0,5.0);
+                SonarChartEngine.Chart chart=SonarChartEngine.build(copy,20.0,AppSettings.contourIntervalMeters(this));
                 runOnUiThread(()->{
                     sonarChart=chart;
                     newSoundings=0;
