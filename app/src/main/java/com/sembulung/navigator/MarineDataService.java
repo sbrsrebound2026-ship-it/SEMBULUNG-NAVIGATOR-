@@ -154,7 +154,8 @@ public class MarineDataService extends Service {
 
         String cpa=Double.isNaN(a.cpaNm)?"---":String.format(Locale.US,"%.2f NM",a.cpaNm);
         String tcpa=Double.isNaN(a.tcpaMinutes)?"---":String.format(Locale.US,"%.0f min",a.tcpaMinutes);
-        Notification n=new Notification.Builder(this,CHANNEL_ALERT)
+        Notification.Builder alertBuilder=notificationBuilder(CHANNEL_ALERT);
+        Notification n=alertBuilder
                 .setSmallIcon(android.R.drawable.ic_dialog_alert)
                 .setContentTitle("AIS "+a.risk.name()+" • MMSI "+String.format(Locale.US,"%09d",target.mmsi))
                 .setContentText("CPA "+cpa+" • TCPA "+tcpa)
@@ -175,7 +176,7 @@ public class MarineDataService extends Service {
     private Notification serviceNotification(int port,String text){
         Intent open=new Intent(this,MarineMapActivity.class);
         PendingIntent pi=PendingIntent.getActivity(this,0,open,PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE);
-        return new Notification.Builder(this,CHANNEL_SERVICE)
+        return notificationBuilder(CHANNEL_SERVICE)
                 .setSmallIcon(android.R.drawable.ic_menu_compass)
                 .setContentTitle("SEMBULUNG NAVIGATOR • Marine Data")
                 .setContentText(text)
@@ -188,6 +189,11 @@ public class MarineDataService extends Service {
     private void updateServiceNotification(String text){
         ((NotificationManager)getSystemService(NOTIFICATION_SERVICE))
                 .notify(NOTIF_SERVICE,serviceNotification(activePort,text));
+    }
+
+    private Notification.Builder notificationBuilder(String channel){
+        if(Build.VERSION.SDK_INT>=26)return new Notification.Builder(this,channel);
+        return new Notification.Builder(this);
     }
 
     private void createChannels(){
