@@ -1,0 +1,8 @@
+<resources>
+    <style name="Theme.Sembulung.Splash" parent="Theme.Sembulung">
+        <item name="android:windowFullscreen">true</item>
+        <item name="android:windowSplashScreenBackground">@color/ocean_deep</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/splash_icon_sembulung</item>
+        <item name="android:windowSplashScreenAnimationDuration">500</item>
+    </style>
+</resources>
