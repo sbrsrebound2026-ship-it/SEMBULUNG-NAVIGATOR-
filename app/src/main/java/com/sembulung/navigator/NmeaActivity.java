@@ -1,6 +1,7 @@
 package com.sembulung.navigator;
 
 import android.app.Activity;
+import android.content.Intent;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.os.Bundle;
@@ -49,6 +50,10 @@ public class NmeaActivity extends Activity {
     private Double speedKnots = null;
     private Integer satelliteCount = null;
     private Double waterTempC = null;
+
+    private long positionUpdatedAt = 0L;
+    private long headingUpdatedAt = 0L;
+    private long depthUpdatedAt = 0L;
 
     @Override protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -151,6 +156,10 @@ public class NmeaActivity extends Activity {
         });
         root.addView(demo,lp());
 
+        Button openMap = button("BUKA PETA TERINTEGRASI");
+        openMap.setOnClickListener(v -> startActivity(new Intent(this, OfflineMapActivity.class)));
+        root.addView(openMap,lp());
+
         Button clear = button("RESET DATA");
         clear.setOnClickListener(v -> resetValues());
         root.addView(clear,lp());
@@ -245,8 +254,22 @@ public class NmeaActivity extends Activity {
         }
 
         boolean parsed = parseSentence(sentence);
-        if(parsed) validCount++;
-        else invalidCount++;
+        if(parsed) {
+            validCount++;
+            NmeaDataStore.write(
+                    this,
+                    latitude,
+                    longitude,
+                    headingDeg,
+                    depthMeters,
+                    speedKnots,
+                    positionUpdatedAt,
+                    headingUpdatedAt,
+                    depthUpdatedAt,
+                    source);
+        } else {
+            invalidCount++;
+        }
 
         runOnUiThread(() -> {
             lastSentence.setText("NMEA TERAKHIR • " + source + "\n" + sentence);
@@ -275,11 +298,15 @@ public class NmeaActivity extends Activity {
                         if(lat != null && lon != null) {
                             latitude = lat;
                             longitude = lon;
+                            positionUpdatedAt = System.currentTimeMillis();
                         }
                         Double sp = num(f[7]);
                         if(sp != null) speedKnots = sp;
                         Double crs = num(f[8]);
-                        if(crs != null) headingDeg = normalizeHeading(crs);
+                        if(crs != null) {
+                            headingDeg = normalizeHeading(crs);
+                            headingUpdatedAt = System.currentTimeMillis();
+                        }
                     }
                     return true;
 
@@ -290,6 +317,7 @@ public class NmeaActivity extends Activity {
                         if(lat != null && lon != null) {
                             latitude = lat;
                             longitude = lon;
+                            positionUpdatedAt = System.currentTimeMillis();
                         }
                         Integer sat = integer(f[7]);
                         if(sat != null) satelliteCount = sat;
@@ -303,6 +331,7 @@ public class NmeaActivity extends Activity {
                         if(lat != null && lon != null) {
                             latitude = lat;
                             longitude = lon;
+                            positionUpdatedAt = System.currentTimeMillis();
                         }
                     }
                     return true;
@@ -310,7 +339,10 @@ public class NmeaActivity extends Activity {
                 case "VTG":
                     if(f.length > 5) {
                         Double h = num(f[1]);
-                        if(h != null) headingDeg = normalizeHeading(h);
+                        if(h != null) {
+                            headingDeg = normalizeHeading(h);
+                            headingUpdatedAt = System.currentTimeMillis();
+                        }
                         Double sp = num(f[5]);
                         if(sp != null) speedKnots = sp;
                     }
@@ -319,7 +351,10 @@ public class NmeaActivity extends Activity {
                 case "VHW":
                     if(f.length > 5) {
                         Double h = num(f[1]);
-                        if(h != null) headingDeg = normalizeHeading(h);
+                        if(h != null) {
+                            headingDeg = normalizeHeading(h);
+                            headingUpdatedAt = System.currentTimeMillis();
+                        }
                         Double sp = num(f[5]);
                         if(sp != null) speedKnots = sp;
                     }
@@ -329,21 +364,30 @@ public class NmeaActivity extends Activity {
                 case "HDT":
                     if(f.length > 1) {
                         Double h = num(f[1]);
-                        if(h != null) headingDeg = normalizeHeading(h);
+                        if(h != null) {
+                            headingDeg = normalizeHeading(h);
+                            headingUpdatedAt = System.currentTimeMillis();
+                        }
                     }
                     return true;
 
                 case "DPT":
                     if(f.length > 1) {
                         Double d = num(f[1]);
-                        if(d != null && d >= 0) depthMeters = d;
+                        if(d != null && d >= 0) {
+                            depthMeters = d;
+                            depthUpdatedAt = System.currentTimeMillis();
+                        }
                     }
                     return true;
 
                 case "DBT":
                     if(f.length > 3) {
                         Double d = num(f[3]);
-                        if(d != null && d >= 0) depthMeters = d;
+                        if(d != null && d >= 0) {
+                            depthMeters = d;
+                            depthUpdatedAt = System.currentTimeMillis();
+                        }
                     }
                     return true;
 
@@ -464,9 +508,13 @@ public class NmeaActivity extends Activity {
         speedKnots = null;
         satelliteCount = null;
         waterTempC = null;
+        positionUpdatedAt = 0L;
+        headingUpdatedAt = 0L;
+        depthUpdatedAt = 0L;
         receivedCount = 0;
         validCount = 0;
         invalidCount = 0;
+        NmeaDataStore.clear(this);
         lastSentence.setText("NMEA TERAKHIR\n---");
         updateDisplays();
         updateStats();

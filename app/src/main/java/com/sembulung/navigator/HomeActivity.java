@@ -57,7 +57,7 @@ public class HomeActivity extends Activity {
         code.setPadding(0,dp(28),0,0);
         root.addView(code);
 
-        TextView version = label("SEMBULUNG NAVIGATOR • V10 DEVELOPMENT", 11, false);
+        TextView version = label("SEMBULUNG NAVIGATOR • V11 DEVELOPMENT", 11, false);
         version.setPadding(0,dp(14),0,0);
         root.addView(version);
 

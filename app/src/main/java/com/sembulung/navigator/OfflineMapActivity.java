@@ -13,11 +13,14 @@ import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
+import android.graphics.Path;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
@@ -42,12 +45,24 @@ public class OfflineMapActivity extends Activity implements LocationListener {
     private static final String WP_PREFS = "sembulung_waypoints";
     private static final String KEY_WAYPOINTS = "waypoints_json";
     private static final String KEY_ACTIVE = "active_index";
+    private static final long NMEA_FRESH_MS = 5000L;
 
     private LocationManager locationManager;
     private Location currentLocation;
     private SQLiteDatabase mapDb;
     private TextView status;
+    private TextView sourceStatus;
     private MbTilesView mapView;
+
+    private final Handler liveHandler = new Handler(Looper.getMainLooper());
+    private NmeaDataStore.Snapshot nmeaSnapshot;
+    private int sourceMode = 0; // 0=AUTO, 1=GPS HP, 2=NMEA
+    private final Runnable liveRefresh = new Runnable() {
+        @Override public void run() {
+            refreshLiveData();
+            liveHandler.postDelayed(this, 500L);
+        }
+    };
 
     private int minZoom = 0;
     private int maxZoom = 18;
@@ -70,28 +85,49 @@ public class OfflineMapActivity extends Activity implements LocationListener {
         title.setPadding(dp(12),dp(14),dp(12),dp(4));
         root.addView(title);
 
-        TextView subtitle = text("Raster MBTiles lokal • GPS • Waypoint • Rute aktif", 13, false);
+        TextView subtitle = text("MBTiles • GPS HP / NMEA • Waypoint • Rute aktif", 13, false);
         subtitle.setPadding(dp(12),0,dp(12),dp(8));
         root.addView(subtitle);
 
         status = text("Belum ada peta MBTiles. Tekan IMPOR PETA.", 12, false);
-        status.setPadding(dp(12),dp(6),dp(12),dp(8));
+        status.setPadding(dp(12),dp(6),dp(12),dp(4));
         root.addView(status);
+
+        sourceStatus = text("SUMBER POSISI: AUTO • menunggu data", 12, true);
+        sourceStatus.setPadding(dp(12),0,dp(12),dp(8));
+        root.addView(sourceStatus);
 
         mapView = new MbTilesView(this);
         LinearLayout.LayoutParams mapParams = new LinearLayout.LayoutParams(-1,0,1f);
         root.addView(mapView,mapParams);
 
+        LinearLayout sourceRow = new LinearLayout(this);
+        sourceRow.setOrientation(LinearLayout.HORIZONTAL);
+        sourceRow.setPadding(dp(8),dp(8),dp(8),0);
+
+        Button autoSource = button("AUTO");
+        autoSource.setOnClickListener(v -> setSourceMode(0));
+        sourceRow.addView(autoSource,half());
+
+        Button gpsSource = button("GPS HP");
+        gpsSource.setOnClickListener(v -> setSourceMode(1));
+        sourceRow.addView(gpsSource,half());
+
+        Button nmeaSource = button("NMEA");
+        nmeaSource.setOnClickListener(v -> setSourceMode(2));
+        sourceRow.addView(nmeaSource,half());
+        root.addView(sourceRow);
+
         LinearLayout row1 = new LinearLayout(this);
         row1.setOrientation(LinearLayout.HORIZONTAL);
-        row1.setPadding(dp(8),dp(8),dp(8),0);
+        row1.setPadding(dp(8),dp(6),dp(8),0);
 
         Button importMap = button("IMPOR PETA");
         importMap.setOnClickListener(v -> chooseMbTiles());
         row1.addView(importMap,half());
 
-        Button gps = button("KE POSISI GPS");
-        gps.setOnClickListener(v -> recenterGps());
+        Button gps = button("KE POSISI AKTIF");
+        gps.setOnClickListener(v -> recenterActive());
         row1.addView(gps,half());
         root.addView(row1);
 
@@ -116,6 +152,7 @@ public class OfflineMapActivity extends Activity implements LocationListener {
 
         openLocalMapIfPresent();
         startGps();
+        refreshLiveData();
     }
 
     private void chooseMbTiles() {
@@ -217,22 +254,77 @@ public class OfflineMapActivity extends Activity implements LocationListener {
         if(last != null) onLocationChanged(last);
     }
 
-    private void recenterGps() {
-        if(currentLocation == null) {
-            Toast.makeText(this,"Posisi GPS belum tersedia",Toast.LENGTH_SHORT).show();
-            startGps();
+    private void setSourceMode(int mode) {
+        sourceMode = mode;
+        refreshLiveData();
+        recenterActive();
+    }
+
+    private void recenterActive() {
+        Double lat = activeLat();
+        Double lon = activeLon();
+        if(lat == null || lon == null) {
+            Toast.makeText(this,"Posisi aktif belum tersedia",Toast.LENGTH_SHORT).show();
+            if(sourceMode != 2) startGps();
             return;
         }
-        mapView.centerOn(currentLocation.getLatitude(),currentLocation.getLongitude());
+        mapView.centerOn(lat,lon);
+    }
+
+    private void refreshLiveData() {
+        nmeaSnapshot = NmeaDataStore.read(this);
+        boolean nmeaFresh = nmeaSnapshot != null && nmeaSnapshot.positionFresh(NMEA_FRESH_MS);
+        String mode = sourceMode == 0 ? "AUTO" : (sourceMode == 1 ? "GPS HP" : "NMEA");
+        String active = useNmeaPosition() ? "NMEA" : (currentLocation != null ? "GPS HP" : "BELUM ADA");
+        String depthText = "";
+        if(nmeaSnapshot != null && nmeaSnapshot.depthFresh(NMEA_FRESH_MS)) {
+            depthText = String.format(Locale.US," • depth %.1f m",nmeaSnapshot.depth);
+        }
+        sourceStatus.setText("SUMBER: " + mode + " → " + active + (nmeaFresh ? " • NMEA fresh" : " • NMEA stale") + depthText);
+
+        if(!mapView.hasInitialCenter) {
+            Double lat = activeLat();
+            Double lon = activeLon();
+            if(lat != null && lon != null) {
+                mapView.centerOn(lat,lon);
+                mapView.hasInitialCenter = true;
+            }
+        }
+        mapView.invalidate();
+    }
+
+    private boolean useNmeaPosition() {
+        boolean fresh = nmeaSnapshot != null && nmeaSnapshot.positionFresh(NMEA_FRESH_MS);
+        if(sourceMode == 2) return fresh;
+        if(sourceMode == 1) return false;
+        return fresh;
+    }
+
+    private Double activeLat() {
+        if(useNmeaPosition()) return nmeaSnapshot.lat;
+        return currentLocation == null ? null : currentLocation.getLatitude();
+    }
+
+    private Double activeLon() {
+        if(useNmeaPosition()) return nmeaSnapshot.lon;
+        return currentLocation == null ? null : currentLocation.getLongitude();
+    }
+
+    private Double activeHeading() {
+        if(useNmeaPosition() && nmeaSnapshot != null && nmeaSnapshot.headingFresh(NMEA_FRESH_MS)) {
+            return nmeaSnapshot.heading;
+        }
+        if(currentLocation != null && currentLocation.hasBearing()) return (double)currentLocation.getBearing();
+        return null;
     }
 
     @Override public void onLocationChanged(Location location) {
         currentLocation = location;
-        if(!mapView.hasInitialCenter) {
+        if(!mapView.hasInitialCenter && !useNmeaPosition()) {
             mapView.centerOn(location.getLatitude(),location.getLongitude());
             mapView.hasInitialCenter = true;
         }
-        mapView.invalidate();
+        refreshLiveData();
     }
 
     @Override public void onProviderEnabled(String provider) {}
@@ -264,8 +356,16 @@ public class OfflineMapActivity extends Activity implements LocationListener {
         if(activeIndex >= waypoints.size()) activeIndex = -1;
     }
 
+    @Override protected void onResume() {
+        super.onResume();
+        if(locationManager != null && mapView != null) startGps();
+        liveHandler.removeCallbacks(liveRefresh);
+        liveHandler.post(liveRefresh);
+    }
+
     @Override protected void onPause() {
         super.onPause();
+        liveHandler.removeCallbacks(liveRefresh);
         try {
             if(checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
                 locationManager.removeUpdates(this);
@@ -273,12 +373,8 @@ public class OfflineMapActivity extends Activity implements LocationListener {
         } catch(Exception ignored) {}
     }
 
-    @Override protected void onResume() {
-        super.onResume();
-        if(locationManager != null && mapView != null) startGps();
-    }
-
     @Override protected void onDestroy() {
+        liveHandler.removeCallbacks(liveRefresh);
         closeDb();
         super.onDestroy();
     }
@@ -360,7 +456,8 @@ public class OfflineMapActivity extends Activity implements LocationListener {
             drawTiles(canvas);
             drawRoute(canvas);
             drawWaypoints(canvas);
-            drawGps(canvas);
+            drawVessel(canvas);
+            drawTelemetry(canvas);
             drawCrosshair(canvas);
         }
 
@@ -416,16 +513,53 @@ public class OfflineMapActivity extends Activity implements LocationListener {
             return null;
         }
 
-        private void drawGps(Canvas canvas) {
-            if(currentLocation == null) return;
-            float[] p = pointFor(currentLocation.getLatitude(),currentLocation.getLongitude());
-            paint.setColor(Color.CYAN);
-            canvas.drawCircle(p[0],p[1],dp(8),paint);
+        private void drawVessel(Canvas canvas) {
+            Double lat = activeLat();
+            Double lon = activeLon();
+            if(lat == null || lon == null) return;
+
+            float[] p = pointFor(lat,lon);
+            Double h = activeHeading();
+            float heading = h == null ? 0f : h.floatValue();
+
+            paint.setColor(useNmeaPosition() ? Color.MAGENTA : Color.CYAN);
+            paint.setStyle(Paint.Style.FILL);
+
+            Path boat = new Path();
+            boat.moveTo(p[0],p[1]-dp(14));
+            boat.lineTo(p[0]-dp(9),p[1]+dp(11));
+            boat.lineTo(p[0],p[1]+dp(6));
+            boat.lineTo(p[0]+dp(9),p[1]+dp(11));
+            boat.close();
+
+            canvas.save();
+            canvas.rotate(heading,p[0],p[1]);
+            canvas.drawPath(boat,paint);
+            canvas.restore();
+
             paint.setStyle(Paint.Style.STROKE);
             paint.setStrokeWidth(dp(2));
             paint.setColor(Color.WHITE);
-            canvas.drawCircle(p[0],p[1],dp(11),paint);
+            canvas.drawCircle(p[0],p[1],dp(16),paint);
             paint.setStyle(Paint.Style.FILL);
+        }
+
+        private void drawTelemetry(Canvas canvas) {
+            String source = useNmeaPosition() ? "NMEA" : "GPS HP";
+            Double h = activeHeading();
+            String headingText = h == null ? "---°" : String.format(Locale.US,"%.0f°",h);
+            String depthText = "--- m";
+            if(nmeaSnapshot != null && nmeaSnapshot.depthFresh(NMEA_FRESH_MS)) {
+                depthText = String.format(Locale.US,"%.1f m",nmeaSnapshot.depth);
+            }
+
+            paint.setColor(0xCC001326);
+            canvas.drawRect(dp(8),dp(8),dp(190),dp(72),paint);
+            paint.setColor(Color.WHITE);
+            paint.setTextAlign(Paint.Align.LEFT);
+            paint.setTextSize(dp(12));
+            canvas.drawText("SOURCE " + source,dp(16),dp(28),paint);
+            canvas.drawText("HDG " + headingText + "   DEPTH " + depthText,dp(16),dp(50),paint);
         }
 
         private void drawWaypoints(Canvas canvas) {
@@ -442,9 +576,11 @@ public class OfflineMapActivity extends Activity implements LocationListener {
         }
 
         private void drawRoute(Canvas canvas) {
-            if(currentLocation == null || activeIndex < 0 || activeIndex >= waypoints.size()) return;
+            Double lat = activeLat();
+            Double lon = activeLon();
+            if(lat == null || lon == null || activeIndex < 0 || activeIndex >= waypoints.size()) return;
             Waypoint wp = waypoints.get(activeIndex);
-            float[] a = pointFor(currentLocation.getLatitude(),currentLocation.getLongitude());
+            float[] a = pointFor(lat,lon);
             float[] b = pointFor(wp.lat,wp.lon);
             paint.setColor(Color.YELLOW);
             paint.setStrokeWidth(dp(3));
