@@ -4,7 +4,10 @@ import android.content.Context;
 import android.graphics.*;
 import android.view.*;
 import com.sembulung.navigator.sonar.DepthSample;
-import com.sembulung.navigator.sonar.SonarChartEngine;\nimport com.sembulung.navigator.ais.AisTarget;\nimport java.util.ArrayList;\nimport java.util.List;
+import com.sembulung.navigator.sonar.SonarChartEngine;
+import com.sembulung.navigator.ais.AisTarget;
+import java.util.ArrayList;
+import java.util.List;
 
 public class MarineMapView extends View {
     private static final int T=256;
@@ -23,7 +26,10 @@ public class MarineMapView extends View {
     private boolean sonarEnabled=true;
     private boolean sonarShading=true;
     private boolean sonarContours=true;
-    private boolean sonarSoundings=false;\n    private List<WaypointStore.Waypoint> waypoints=new ArrayList<>();\n    private List<AisTarget> aisTargets=new ArrayList<>();\n    private boolean aisEnabled=true;
+    private boolean sonarSoundings=false;
+    private List<WaypointStore.Waypoint> waypoints=new ArrayList<>();
+    private List<AisTarget> aisTargets=new ArrayList<>();
+    private boolean aisEnabled=true;
 
     public MarineMapView(Context c,MarineTileLoader l){
         super(c);
