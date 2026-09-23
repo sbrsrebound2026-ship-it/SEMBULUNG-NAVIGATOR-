@@ -2,10 +2,10 @@
 
 **SEMBULUNG NAVIGATOR — BY WONG MBRAYU** is a standalone clean-room Android marine navigation application.
 
-Current build: **V21 Standalone Alpha**
+Current build: **V23 Standalone — MapLibre PMTiles**
 
 - Application ID: `com.sembulung.navigator`
-- Version: `2.0.0-standalone-v21`
+- Version: `2.2.0-standalone-v23`
 - Tagline: **Navigasi Laut Presisi**
 - This project does not depend on, wrap, patch, or re-sign the Boating/Navionics APK.
 - Device-bound ECDSA activation is built into the app.
@@ -17,13 +17,27 @@ Current build: **V21 Standalone Alpha**
 - Online-first marine map with live GPS and marine overlays
 - Waypoints, active route guidance, arrival/route controls
 - Coordinate search
-- Offline raster MBTiles import
+- Offline raster MBTiles reader with sparse-zoom handling and TMS/XYZ detection
+- Offline detailed vector PMTiles renderer using MapLibre OpenGL
+- Local PMTiles import through Android Storage Access Framework
 - NMEA data input/store for position, heading and depth
 - AIS target parsing plus CPA/TCPA collision calculations
 - Sonar/depth sounding storage, filtering and survey sessions
 - Bathymetry depth shading, vector contours and soundings
 - Sonar CSV import/export, replay and backup
 - Settings and diagnostics
+
+## Offline map data
+
+The primary detailed test package for V23 is the **Banyuwangi–Selat Bali–Bali PMTiles** extract built from Geofabrik Shortbread / OpenStreetMap data.
+
+Target bounds: `113.0,-9.2,116.0,-7.0`
+
+Vector zoom range: `0–14`
+
+Attribution: **© OpenStreetMap contributors / Geofabrik**
+
+This vector map is not an official hydrographic chart and must not be used as the sole source for navigation safety.
 
 ## Data policy
 
