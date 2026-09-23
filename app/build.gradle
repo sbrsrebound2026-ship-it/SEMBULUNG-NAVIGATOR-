@@ -34,8 +34,8 @@ android {
         applicationId 'com.sembulung.navigator'
         minSdk 23
         targetSdk 35
-        versionCode 22
-        versionName '2.1.0-standalone-v22'
+        versionCode 23
+        versionName '2.2.0-standalone-v23'
     }
 
     signingConfigs {
@@ -71,5 +71,6 @@ android {
 }
 
 dependencies {
+    implementation 'org.maplibre.gl:android-sdk-opengl:13.6.1'
     testImplementation 'junit:junit:4.13.2'
 }
