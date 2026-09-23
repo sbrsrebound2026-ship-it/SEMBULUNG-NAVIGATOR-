@@ -1,0 +1,91 @@
+name: Build SEMBULUNG NAVIGATOR 3.0 FINAL SIGNED
+
+on:
+  push:
+    paths:
+      - '.github/workflows/final-signed-release.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  final-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Restore permanent SEMBULUNG signing key
+        env:
+          KEYSTORE_B64: ${{ secrets.SEMBULUNG_KEYSTORE_B64 }}
+        run: |
+          test -n "$KEYSTORE_B64"
+          echo "$KEYSTORE_B64" | base64 --decode > sembulung-final-release.jks
+
+      - name: Run unit tests
+        run: gradle --no-daemon :app:testDebugUnitTest
+
+      - name: Build signed final APK
+        env:
+          SEMBULUNG_STORE_FILE: sembulung-final-release.jks
+          SEMBULUNG_STORE_PASSWORD: ${{ secrets.SEMBULUNG_STORE_PASSWORD }}
+          SEMBULUNG_KEY_ALIAS: ${{ secrets.SEMBULUNG_KEY_ALIAS }}
+          SEMBULUNG_KEY_PASSWORD: ${{ secrets.SEMBULUNG_KEY_PASSWORD }}
+        run: gradle --no-daemon :app:assembleRelease
+
+      - name: Verify certificate and package
+        run: |
+          APKSIGNER=$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -1)
+          AAPT=$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -1)
+          APK=$(find app/build/outputs/apk/release -name '*.apk' | head -1)
+          "$APKSIGNER" verify --verbose --print-certs "$APK" | tee cert.txt
+          EXPECTED="BADFDF7F8C0031D82CDC20430A29ECD3F6E7D821FEE0478314D1128A6D5E887C"
+          ACTUAL=$(grep -i 'certificate SHA-256 digest:' cert.txt | head -1 | sed 's/.*: //' | tr -d ':' | tr '[:lower:]' '[:upper:]')
+          test "$ACTUAL" = "$EXPECTED"
+          "$AAPT" dump badging "$APK" | head -20 | tee badging.txt
+          grep -q "package: name='com.sembulung.navigator'" badging.txt
+          grep -q "versionCode='27'" badging.txt
+          grep -q "versionName='3.0.0-final'" badging.txt
+
+      - name: Package final distribution
+        run: |
+          mkdir -p final
+          APK=$(find app/build/outputs/apk/release -name '*.apk' | head -1)
+          cp "$APK" final/SEMBULUNG_NAVIGATOR_3.0_FINAL.apk
+          cp cert.txt final/CERTIFICATE_VERIFY.txt
+          cp badging.txt final/APK_BADGING.txt
+          sha256sum final/SEMBULUNG_NAVIGATOR_3.0_FINAL.apk | tee final/SHA256.txt
+          cat > final/INSTALL_README.txt <<'EOF'
+          SEMBULUNG NAVIGATOR 3.0 FINAL
+          BY WONG MBRAYU
+          Package: com.sembulung.navigator
+          Version code: 27
+          Version name: 3.0.0-final
+
+          INSTALL
+          1. Install SEMBULUNG_NAVIGATOR_3.0_FINAL.apk.
+          2. Open the app and copy the Device Code.
+          3. Generate the matching activation key with the private SEMBULUNG Key Admin.
+          4. Activate the device.
+          5. Open UNIFIED MARINE MAP and import the Banyuwangi-Bali PMTiles package if desired.
+          6. Allow precise GPS permission for live vessel navigation.
+
+          SAFETY
+          OpenStreetMap/OpenSeaMap/GEBCO-derived layers and user sonar data are navigation aids only.
+          Use appropriate official hydrographic charts and normal seamanship for safety-critical navigation.
+          EOF
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SEMBULUNG-NAVIGATOR-3.0-FINAL-SIGNED
+          path: final/
+          retention-days: 90
