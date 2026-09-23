@@ -74,7 +74,7 @@ public class HomeActivity extends Activity {
         code.setPadding(0,dp(24),0,0);
         root.addView(code);
 
-        TextView version = label("V21 STANDALONE ALPHA • CLEAN-ROOM BUILD", 11, false);
+        TextView version = label("V22 STANDALONE • SMART OFFLINE MBTILES", 11, false);
         version.setPadding(0,dp(12),0,0);
         root.addView(version);
 
