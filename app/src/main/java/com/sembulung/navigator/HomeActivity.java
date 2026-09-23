@@ -22,40 +22,44 @@ public class HomeActivity extends Activity {
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setGravity(Gravity.CENTER_HORIZONTAL);
-        root.setPadding(dp(22),dp(28),dp(22),dp(28));
+        root.setPadding(dp(22),dp(26),dp(22),dp(28));
         scroll.addView(root, new ScrollView.LayoutParams(-1,-2));
 
         TextView title = label("SEMBULUNG NAVIGATOR", 25, true);
         root.addView(title);
 
-        TextView tag = label("Navigasi Laut Presisi", 15, false);
-        tag.setPadding(0,dp(6),0,dp(8));
+        TextView tag = label("Navigasi Laut Presisi • BY WONG MBRAYU", 14, false);
+        tag.setPadding(0,dp(6),0,dp(6));
         root.addView(tag);
 
-        TextView status = label("PERANGKAT AKTIF", 14, true);
+        TextView status = label("STANDALONE MARINE NAVIGATION • PERANGKAT AKTIF", 12, true);
         status.setTextColor(Color.rgb(37,217,248));
-        status.setPadding(0,dp(8),0,dp(22));
+        status.setPadding(0,dp(6),0,dp(18));
         root.addView(status);
-
-        Button nav = button("NAVIGASI GPS");
-        nav.setOnClickListener(v -> startActivity(new Intent(this, NavigationActivity.class)));
-        root.addView(nav, lp());
 
         Button maps = button("MARINE MAP + SONAR CHART");
         maps.setOnClickListener(v -> startActivity(new Intent(this, MarineMapActivity.class)));
         root.addView(maps, lp());
 
+        Button nav = button("NAVIGASI GPS • WAYPOINT • RUTE");
+        nav.setOnClickListener(v -> startActivity(new Intent(this, NavigationActivity.class)));
+        root.addView(nav, lp());
+
         Button search = button("CARI KOORDINAT");
         search.setOnClickListener(v -> startActivity(new Intent(this, SearchCoordinateActivity.class)));
         root.addView(search, lp());
 
-        Button waypoint = button("WAYPOINT & RUTE");
-        waypoint.setOnClickListener(v -> startActivity(new Intent(this, NavigationActivity.class)));
-        root.addView(waypoint, lp());
+        Button offline = button("PETA OFFLINE • IMPOR MBTILES");
+        offline.setOnClickListener(v -> startActivity(new Intent(this, OfflineMapActivity.class)));
+        root.addView(offline, lp());
 
-        Button sonar = button("SONAR / NMEA");
-        sonar.setOnClickListener(v -> startActivity(new Intent(this, NmeaActivity.class)));
-        root.addView(sonar, lp());
+        Button sonarSurvey = button("SONAR SURVEY CENTER");
+        sonarSurvey.setOnClickListener(v -> startActivity(new Intent(this, SonarSurveyActivity.class)));
+        root.addView(sonarSurvey, lp());
+
+        Button nmea = button("NMEA • GPS / DEPTH INPUT");
+        nmea.setOnClickListener(v -> startActivity(new Intent(this, NmeaActivity.class)));
+        root.addView(nmea, lp());
 
         Button ais = button("AIS • CPA / TCPA");
         ais.setOnClickListener(v -> startActivity(new Intent(this, AisActivity.class)));
@@ -66,18 +70,15 @@ public class HomeActivity extends Activity {
         root.addView(settings, lp());
 
         TextView code = label("Device Code\n" + DeviceIdentity.formattedDeviceCode(this), 13, false);
-        code.setPadding(0,dp(28),0,0);
+        code.setTextIsSelectable(true);
+        code.setPadding(0,dp(24),0,0);
         root.addView(code);
 
-        TextView version = label("SEMBULUNG NAVIGATOR • V16 UNIFIED MARINE MAP", 11, false);
-        version.setPadding(0,dp(14),0,0);
+        TextView version = label("V21 STANDALONE ALPHA • CLEAN-ROOM BUILD", 11, false);
+        version.setPadding(0,dp(12),0,0);
         root.addView(version);
 
         setContentView(scroll);
-    }
-
-    private void info(String message) {
-        android.widget.Toast.makeText(this, message, android.widget.Toast.LENGTH_LONG).show();
     }
 
     private TextView label(String s,int sp,boolean bold){
@@ -99,7 +100,7 @@ public class HomeActivity extends Activity {
 
     private LinearLayout.LayoutParams lp(){
         LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,-2);
-        p.setMargins(0,dp(9),0,0);
+        p.setMargins(0,dp(8),0,0);
         return p;
     }
 
