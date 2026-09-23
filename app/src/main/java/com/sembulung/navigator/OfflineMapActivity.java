@@ -68,6 +68,7 @@ public class OfflineMapActivity extends Activity implements LocationListener {
     private int maxZoom = 18;
     private int zoom = 12;
     private String tileScheme = "tms";
+    private final List<Integer> availableZooms = new ArrayList<>();
 
     private final List<Waypoint> waypoints = new ArrayList<>();
     private int activeIndex = -1;
@@ -136,11 +137,11 @@ public class OfflineMapActivity extends Activity implements LocationListener {
         row2.setPadding(dp(8),dp(6),dp(8),dp(8));
 
         Button minus = button("ZOOM −");
-        minus.setOnClickListener(v -> mapView.setZoom(Math.max(minZoom, zoom - 1)));
+        minus.setOnClickListener(v -> mapView.stepZoom(-1));
         row2.addView(minus,half());
 
         Button plus = button("ZOOM +");
-        plus.setOnClickListener(v -> mapView.setZoom(Math.min(maxZoom, zoom + 1)));
+        plus.setOnClickListener(v -> mapView.stepZoom(1));
         row2.addView(plus,half());
 
         Button back = button("KEMBALI");
@@ -200,21 +201,37 @@ public class OfflineMapActivity extends Activity implements LocationListener {
         closeDb();
         try {
             mapDb = SQLiteDatabase.openDatabase(f.getAbsolutePath(),null,SQLiteDatabase.OPEN_READONLY);
-            minZoom = readMetadataInt("minzoom",0);
-            maxZoom = readMetadataInt("maxzoom",18);
-            tileScheme = readMetadata("scheme","tms").toLowerCase(Locale.US);
-            if(maxZoom < minZoom) maxZoom = minZoom;
-            zoom = Math.max(minZoom,Math.min(maxZoom,zoom));
 
             Cursor c = mapDb.rawQuery("SELECT 1 FROM tiles LIMIT 1",null);
             boolean hasTiles = c.moveToFirst();
             c.close();
             if(!hasTiles) throw new IllegalArgumentException("Tabel tiles kosong");
 
-            status.setText("Peta aktif • zoom " + minZoom + "–" + maxZoom + " • " + tileScheme.toUpperCase(Locale.US));
+            loadAvailableZooms();
+            if(availableZooms.isEmpty()) throw new IllegalArgumentException("Tidak ada zoom tile yang valid");
+
+            minZoom = availableZooms.get(0);
+            maxZoom = availableZooms.get(availableZooms.size()-1);
+            zoom = nearestAvailableZoom(zoom);
+
+            String declaredScheme = readMetadata("scheme","").trim().toLowerCase(Locale.US);
+            if("xyz".equals(declaredScheme) || "tms".equals(declaredScheme)) {
+                tileScheme = declaredScheme;
+            } else {
+                tileScheme = detectTileScheme();
+            }
+
+            String format = readMetadata("format","").trim().toLowerCase(Locale.US);
+            if(!format.isEmpty() && !("png".equals(format) || "jpg".equals(format) || "jpeg".equals(format) || "webp".equals(format))) {
+                throw new IllegalArgumentException("Format tile " + format + " belum didukung reader raster");
+            }
+
+            status.setText("Peta aktif • zoom " + zoom + " • tersedia " + availableZoomsText()
+                    + " • " + tileScheme.toUpperCase(Locale.US));
             mapView.invalidate();
         } catch(Exception e) {
             closeDb();
+            availableZooms.clear();
             status.setText("File bukan MBTiles raster yang didukung");
             Toast.makeText(this,"MBTiles tidak valid: " + e.getMessage(),Toast.LENGTH_LONG).show();
         }
@@ -237,6 +254,112 @@ public class OfflineMapActivity extends Activity implements LocationListener {
             return Integer.parseInt(readMetadata(key,String.valueOf(fallback)).trim());
         } catch(Exception e) {
             return fallback;
+        }
+    }
+
+    private void loadAvailableZooms() {
+        availableZooms.clear();
+        Cursor c = null;
+        try {
+            c = mapDb.rawQuery("SELECT DISTINCT zoom_level FROM tiles ORDER BY zoom_level",null);
+            while(c.moveToNext()) availableZooms.add(c.getInt(0));
+        } finally {
+            if(c != null) c.close();
+        }
+    }
+
+    private int nearestAvailableZoom(int requested) {
+        if(availableZooms.isEmpty()) return requested;
+        int best = availableZooms.get(0);
+        int bestDistance = Math.abs(best-requested);
+        for(int z : availableZooms) {
+            int d = Math.abs(z-requested);
+            if(d < bestDistance) {
+                best = z;
+                bestDistance = d;
+            }
+        }
+        return best;
+    }
+
+    private int adjacentAvailableZoom(int current,int direction) {
+        if(availableZooms.isEmpty()) return current;
+        if(direction > 0) {
+            for(int z : availableZooms) if(z > current) return z;
+            return availableZooms.get(availableZooms.size()-1);
+        } else {
+            for(int i=availableZooms.size()-1;i>=0;i--) {
+                int z=availableZooms.get(i);
+                if(z < current) return z;
+            }
+            return availableZooms.get(0);
+        }
+    }
+
+    private String availableZoomsText() {
+        if(availableZooms.isEmpty()) return "-";
+        StringBuilder b = new StringBuilder();
+        for(int i=0;i<availableZooms.size();i++) {
+            if(i>0) b.append("/");
+            b.append(availableZooms.get(i));
+        }
+        return b.toString();
+    }
+
+    private String detectTileScheme() {
+        String bounds = readMetadata("bounds","");
+        if(bounds.trim().isEmpty()) return "tms";
+        try {
+            String[] p=bounds.split(",");
+            if(p.length<4) return "tms";
+            double west=Double.parseDouble(p[0].trim());
+            double south=Double.parseDouble(p[1].trim());
+            double east=Double.parseDouble(p[2].trim());
+            double north=Double.parseDouble(p[3].trim());
+            double[] lats={south+(north-south)*0.25,(south+north)/2.0,south+(north-south)*0.75};
+            double[] lons={west+(east-west)*0.25,(west+east)/2.0,west+(east-west)*0.75};
+            int tmsScore=0, xyzScore=0;
+
+            for(int zi=availableZooms.size()-1;zi>=0 && zi>=availableZooms.size()-3;zi--) {
+                int z=availableZooms.get(zi);
+                int n=1<<z;
+                for(double lat:lats) for(double lon:lons) {
+                    int x=tileX(lon,z);
+                    int y=tileY(lat,z);
+                    if(tileExists(z,x,n-1-y)) tmsScore++;
+                    if(tileExists(z,x,y)) xyzScore++;
+                }
+            }
+            if(xyzScore>tmsScore) return "xyz";
+        } catch(Exception ignored) {}
+        return "tms";
+    }
+
+    private int tileX(double lon,int z) {
+        int n=1<<z;
+        int x=(int)Math.floor((lon+180.0)/360.0*n);
+        return Math.max(0,Math.min(n-1,x));
+    }
+
+    private int tileY(double lat,int z) {
+        lat=Math.max(-85.05112878,Math.min(85.05112878,lat));
+        double r=Math.toRadians(lat);
+        int n=1<<z;
+        int y=(int)Math.floor((1.0-Math.asinh(Math.tan(r))/Math.PI)/2.0*n);
+        return Math.max(0,Math.min(n-1,y));
+    }
+
+    private boolean tileExists(int z,int x,int row) {
+        Cursor c=null;
+        try {
+            c=mapDb.rawQuery(
+                    "SELECT 1 FROM tiles WHERE zoom_level=? AND tile_column=? AND tile_row=? LIMIT 1",
+                    new String[]{String.valueOf(z),String.valueOf(x),String.valueOf(row)});
+            return c.moveToFirst();
+        } catch(Exception e) {
+            return false;
+        } finally {
+            if(c!=null)c.close();
         }
     }
 
@@ -430,8 +553,16 @@ public class OfflineMapActivity extends Activity implements LocationListener {
         }
 
         void setZoom(int z) {
-            zoom = Math.max(minZoom,Math.min(maxZoom,z));
-            status.setText("Peta aktif • zoom " + zoom + " / " + minZoom + "–" + maxZoom);
+            zoom = nearestAvailableZoom(z);
+            status.setText("Peta aktif • zoom " + zoom + " • tersedia " + availableZoomsText()
+                    + " • " + tileScheme.toUpperCase(Locale.US));
+            invalidate();
+        }
+
+        void stepZoom(int direction) {
+            zoom = adjacentAvailableZoom(zoom,direction);
+            status.setText("Peta aktif • zoom " + zoom + " • tersedia " + availableZoomsText()
+                    + " • " + tileScheme.toUpperCase(Locale.US));
             invalidate();
         }
 
