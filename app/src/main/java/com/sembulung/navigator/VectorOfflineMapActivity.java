@@ -1,10 +1,17 @@
 package com.sembulung.navigator;
 
+import android.Manifest;
 import android.app.Activity;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.graphics.Color;
+import android.location.Location;
+import android.location.LocationListener;
+import android.location.LocationManager;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.Gravity;
 import android.widget.Button;
 import android.widget.FrameLayout;
@@ -30,8 +37,10 @@ import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.util.Locale;
 
-public class VectorOfflineMapActivity extends Activity {
+public class VectorOfflineMapActivity extends Activity implements LocationListener {
     private static final int REQ_PMTILES = 940;
+    private static final int REQ_LOCATION = 941;
+    private static final long NMEA_FRESH_MS = 5000L;
     private static final String FILE_NAME = "sembulung_jatim_bali.pmtiles";
     private static final String SEAMARK_TILES =
             "https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png";
@@ -46,6 +55,17 @@ public class VectorOfflineMapActivity extends Activity {
     private MapLibreMap map;
     private TextView status;
     private TextView safety;
+    private TextView navStatus;
+    private LocationManager locationManager;
+    private Location phoneLocation;
+    private NmeaDataStore.Snapshot nmeaSnapshot;
+    private final Handler liveHandler = new Handler(Looper.getMainLooper());
+    private final Runnable liveRefresh = new Runnable() {
+        @Override public void run() {
+            refreshNavStatus();
+            liveHandler.postDelayed(this,1000L);
+        }
+    };
     private Button importButton;
     private Button marineButton;
     private Button depthButton;
@@ -56,6 +76,7 @@ public class VectorOfflineMapActivity extends Activity {
     @Override protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         MapLibre.getInstance(this);
+        locationManager = (LocationManager)getSystemService(LOCATION_SERVICE);
 
         FrameLayout root = new FrameLayout(this);
         root.setBackgroundColor(Color.rgb(4,24,43));
@@ -80,8 +101,13 @@ public class VectorOfflineMapActivity extends Activity {
 
         safety = label("OPEN DATA • gunakan bersama peta laut resmi",10,true);
         safety.setTextColor(0xffffd764);
-        safety.setPadding(0,0,0,dp(6));
+        safety.setPadding(0,0,0,dp(4));
         top.addView(safety);
+
+        navStatus = label("NAV • menunggu GPS/NMEA",11,true);
+        navStatus.setTextColor(0xff8fffc0);
+        navStatus.setPadding(0,0,0,dp(6));
+        top.addView(navStatus);
 
         LinearLayout row1 = new LinearLayout(this);
         row1.setOrientation(LinearLayout.HORIZONTAL);
@@ -110,6 +136,10 @@ public class VectorOfflineMapActivity extends Activity {
         LinearLayout row2 = new LinearLayout(this);
         row2.setOrientation(LinearLayout.HORIZONTAL);
         row2.setPadding(0,dp(4),0,0);
+
+        Button position = button("POSISI");
+        position.setOnClickListener(v -> centerCurrentPosition());
+        row2.addView(position, third());
 
         Button center = button("BANYUWANGI");
         center.setOnClickListener(v -> centerBanyuwangi());
@@ -149,6 +179,9 @@ public class VectorOfflineMapActivity extends Activity {
             map.setMaxZoomPreference(18.0);
             loadBaseStyle();
         });
+
+        startGps();
+        refreshNavStatus();
     }
 
     private void loadBaseStyle() {
@@ -336,6 +369,90 @@ public class VectorOfflineMapActivity extends Activity {
         return new File(getFilesDir(),FILE_NAME);
     }
 
+    private void startGps() {
+        if(checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION},REQ_LOCATION);
+            return;
+        }
+        try {
+            if(locationManager != null && locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
+                locationManager.requestLocationUpdates(
+                        LocationManager.GPS_PROVIDER,1000L,0.5f,this);
+                Location last=locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER);
+                if(last!=null) phoneLocation=last;
+            }
+        } catch(Exception ignored) {}
+    }
+
+    private void refreshNavStatus() {
+        if(navStatus==null) return;
+        nmeaSnapshot=NmeaDataStore.read(this);
+        boolean nmeaPos=nmeaSnapshot!=null && nmeaSnapshot.positionFresh(NMEA_FRESH_MS);
+        boolean nmeaDepth=nmeaSnapshot!=null && nmeaSnapshot.depthFresh(NMEA_FRESH_MS);
+
+        String source=nmeaPos ? "NMEA" : (phoneLocation!=null ? "GPS HP" : "NO FIX");
+        String pos="--";
+        if(nmeaPos) {
+            pos=String.format(Locale.US,"%.5f %.5f",nmeaSnapshot.lat,nmeaSnapshot.lon);
+        } else if(phoneLocation!=null) {
+            pos=String.format(Locale.US,"%.5f %.5f",
+                    phoneLocation.getLatitude(),phoneLocation.getLongitude());
+        }
+
+        String depth=nmeaDepth
+                ? String.format(Locale.US," • DEPTH %.1f m",nmeaSnapshot.depth)
+                : " • DEPTH --";
+        navStatus.setText("NAV • "+source+" • "+pos+depth);
+    }
+
+    private void centerCurrentPosition() {
+        Double lat=null,lon=null;
+        nmeaSnapshot=NmeaDataStore.read(this);
+        if(nmeaSnapshot!=null && nmeaSnapshot.positionFresh(NMEA_FRESH_MS)) {
+            lat=nmeaSnapshot.lat;
+            lon=nmeaSnapshot.lon;
+        } else if(phoneLocation!=null) {
+            lat=phoneLocation.getLatitude();
+            lon=phoneLocation.getLongitude();
+        }
+
+        if(lat==null || lon==null) {
+            navStatus.setText("NAV • posisi belum tersedia • aktifkan GPS atau NMEA");
+            startGps();
+            return;
+        }
+        if(map!=null) {
+            map.setCameraPosition(new CameraPosition.Builder()
+                    .target(new LatLng(lat,lon))
+                    .zoom(Math.max(13.0,map.getCameraPosition().zoom))
+                    .bearing(0)
+                    .tilt(0)
+                    .build());
+        }
+    }
+
+    @Override public void onLocationChanged(Location location) {
+        phoneLocation=location;
+        refreshNavStatus();
+    }
+
+    @Override public void onProviderEnabled(String provider) {}
+
+    @Override public void onProviderDisabled(String provider) {
+        refreshNavStatus();
+    }
+
+    @Override public void onRequestPermissionsResult(
+            int requestCode,String[] permissions,int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode,permissions,grantResults);
+        if(requestCode==REQ_LOCATION && grantResults.length>0
+                && grantResults[0]==PackageManager.PERMISSION_GRANTED) {
+            startGps();
+        }
+    }
+
     private void centerBanyuwangi() {
         if(map == null) return;
         map.setCameraPosition(new CameraPosition.Builder()
@@ -387,9 +504,17 @@ public class VectorOfflineMapActivity extends Activity {
     @Override protected void onResume() {
         super.onResume();
         if(mapView!=null) mapView.onResume();
+        liveHandler.removeCallbacks(liveRefresh);
+        liveHandler.post(liveRefresh);
+        startGps();
     }
 
     @Override protected void onPause() {
+        liveHandler.removeCallbacks(liveRefresh);
+        if(locationManager!=null && checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION)
+                == PackageManager.PERMISSION_GRANTED) {
+            try { locationManager.removeUpdates(this); } catch(Exception ignored) {}
+        }
         if(mapView!=null) mapView.onPause();
         super.onPause();
     }
