@@ -345,7 +345,8 @@ public class OfflineMapActivity extends Activity implements LocationListener {
         lat=Math.max(-85.05112878,Math.min(85.05112878,lat));
         double r=Math.toRadians(lat);
         int n=1<<z;
-        int y=(int)Math.floor((1.0-Math.asinh(Math.tan(r))/Math.PI)/2.0*n);
+        double mercator = Math.log(Math.tan(r) + (1.0 / Math.cos(r)));
+        int y=(int)Math.floor((1.0-mercator/Math.PI)/2.0*n);
         return Math.max(0,Math.min(n-1,y));
     }
 
