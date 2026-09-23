@@ -1,17 +1,36 @@
 # SEMBULUNG NAVIGATOR
 
-Android project for **SEMBULUNG NAVIGATOR — BY WONG MBRAYU**.
+**SEMBULUNG NAVIGATOR — BY WONG MBRAYU** is a standalone clean-room Android marine navigation application.
 
-Current build: **V14**
+Current build: **V21 Standalone Alpha**
 
 - Application ID: `com.sembulung.navigator`
-- Tagline: `Navigasi Laut Presisi`
-- Activation gate is shown before the main application.
-- One Device Code receives one ECDSA-signed Activation Key.
-- A key issued for one Device Code is rejected on a different device.
-- WhatsApp activation requests are addressed to admin `+62 812-3440-6456` and automatically include the Device Code.
-- Activation status is stored locally and cryptographically re-verified when the app starts.
-- Only the activation **public key** is stored in the Android source.
-- The private activation key and release keystore must remain outside this repository.
+- Version: `2.0.0-standalone-v21`
+- Tagline: **Navigasi Laut Presisi**
+- This project does not depend on, wrap, patch, or re-sign the Boating/Navionics APK.
+- Device-bound ECDSA activation is built into the app.
+- One Device Code receives one Activation Key; a key issued for another device is rejected.
+- Only the activation public key is stored in the repository.
 
-The launcher opens the SEMBULUNG splash first. The splash checks activation state and routes an unactivated installation to `ActivationActivity`; after successful activation the user enters `HomeActivity`.
+## Implemented modules
+
+- Online-first marine map with live GPS and marine overlays
+- Waypoints, active route guidance, arrival/route controls
+- Coordinate search
+- Offline raster MBTiles import
+- NMEA data input/store for position, heading and depth
+- AIS target parsing plus CPA/TCPA collision calculations
+- Sonar/depth sounding storage, filtering and survey sessions
+- Bathymetry depth shading, vector contours and soundings
+- Sonar CSV import/export, replay and backup
+- Settings and diagnostics
+
+## Data policy
+
+SEMBULUNG NAVIGATOR must use map/chart/bathymetry data that the operator is licensed or otherwise permitted to use. Proprietary Navionics charts, services and entitlement mechanisms are not included.
+
+## Startup
+
+`SembulungSplashActivity` checks the local activation state. Unactivated devices are sent to `ActivationActivity`; activated devices enter `HomeActivity`.
+
+The private activation key and permanent Android release keystore must remain outside this repository.
