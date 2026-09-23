@@ -2,6 +2,7 @@ package com.sembulung.navigator;
 
 import android.Manifest;
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Canvas;
@@ -54,6 +55,7 @@ import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -61,6 +63,8 @@ import java.util.Locale;
 public class VectorOfflineMapActivity extends Activity implements LocationListener {
     private static final int REQ_PMTILES = 940;
     private static final int REQ_LOCATION = 941;
+    private static final int REQ_EXPORT_GPX = 942;
+    private static final int REQ_EXPORT_KML = 943;
     private static final String FILE_NAME = "sembulung_jatim_bali.pmtiles";
     private static final long LIVE_AGE_MS = 15000L;
 
@@ -98,6 +102,7 @@ public class VectorOfflineMapActivity extends Activity implements LocationListen
     private LatLng lastTrackPoint;
     private long lastTrackTime = 0L;
     private long lastAlarmAt = 0L;
+    private long lastAisAlarmAt = 0L;
     private long lastHazardBuildAt = 0L;
     private SonarHazardEngine.Assessment cachedHazard;
     private ToneGenerator alarmTone;
@@ -233,10 +238,31 @@ public class VectorOfflineMapActivity extends Activity implements LocationListen
         clearTrack.setOnClickListener(v->clearTrack());
         row3.addView(clearTrack,quarter());
 
+        Button export=button("EXPORT TRACK");
+        export.setOnClickListener(v->showTrackExportDialog());
+        row3.addView(export,quarter());
+        top.addView(row3);
+
+        LinearLayout row4=new LinearLayout(this);
+        row4.setOrientation(LinearLayout.HORIZONTAL);
+        row4.setPadding(0,dp(3),0,0);
+
+        Button settings=button("SETTINGS");
+        settings.setOnClickListener(v->startActivity(new Intent(this,SettingsActivity.class)));
+        row4.addView(settings,quarter());
+
+        Button center=button("CENTER");
+        center.setOnClickListener(v->centerOnBoat());
+        row4.addView(center,quarter());
+
+        Button nav=button("NAV DATA");
+        nav.setOnClickListener(v->startActivity(new Intent(this,NavigationActivity.class)));
+        row4.addView(nav,quarter());
+
         Button back=button("KEMBALI");
         back.setOnClickListener(v->finish());
-        row3.addView(back,quarter());
-        top.addView(row3);
+        row4.addView(back,quarter());
+        top.addView(row4);
 
         FrameLayout.LayoutParams topLp=new FrameLayout.LayoutParams(-1,-2,Gravity.TOP);
         root.addView(top,topLp);
@@ -364,13 +390,48 @@ public class VectorOfflineMapActivity extends Activity implements LocationListen
         double cog=currentCog();
         Double depth=n.depthFresh(15000L)?n.depth:null;
 
+        RouteGuidanceEngine.Guidance guidance=null;
+        if(pos!=null&&active>=0&&active<wps.size()) {
+            guidance=RouteGuidanceEngine.assess(
+                    pos.getLatitude(),pos.getLongitude(),sog,
+                    wps,active,AppSettings.arrivalRadiusNm(this));
+            if(guidance!=null&&guidance.arrived) {
+                int next=RouteGuidanceEngine.nextIndex(
+                        active,wps.size(),true,AppSettings.autoAdvanceRoute(this));
+                WaypointStore.setActiveIndex(this,next);
+                active=next;
+                overlay.activeIndex=next;
+                if(next>=0&&next<wps.size()) {
+                    guidance=RouteGuidanceEngine.assess(
+                            pos.getLatitude(),pos.getLongitude(),sog,
+                            wps,next,AppSettings.arrivalRadiusNm(this));
+                } else guidance=null;
+            }
+        }
+
+        evaluateAisAlarm(pos,sog,cog,ais);
+
         String source=gpsLocation!=null?"GPS":(n.positionFresh(LIVE_AGE_MS)?"NMEA":"NO FIX");
+        String routeText="";
+        if(guidance!=null) {
+            routeText=String.format(Locale.US,
+                    " • %s %.2fNM BRG %.0f° XTE %s ETA %s",
+                    guidance.targetName,guidance.distanceNm,guidance.bearingDeg,
+                    Double.isFinite(guidance.xteNm)?String.format(Locale.US,"%.2fNM",guidance.xteNm):"--",
+                    Double.isFinite(guidance.etaMinutes)?formatEtaMinutes(guidance.etaMinutes):"--");
+            if(Double.isFinite(guidance.xteNm)&&Math.abs(guidance.xteNm)>AppSettings.offRouteNm(this)) {
+                safety.setText(String.format(Locale.US,"OFF ROUTE • XTE %.2fNM > %.2fNM",
+                        Math.abs(guidance.xteNm),AppSettings.offRouteNm(this)));
+                safety.setTextColor(Color.rgb(255,145,45));
+            }
+        }
+
         navStatus.setText(String.format(Locale.US,
-                "%s • SOG %.1f kn • COG %s • DEPTH %s • AIS %d • WP %d • TRACK %d • SONAR %d",
+                "%s • SOG %.1fkn • COG %s • DEPTH %s%s\nAIS %d • WP %d • TRACK %d • SONAR %d",
                 source,sog,
                 Double.isFinite(cog)?String.format(Locale.US,"%.0f°",cog):"--",
                 depth!=null?String.format(Locale.US,"%.1fm",depth):"--",
-                ais.size(),wps.size(),trackPoints.size(),sonar.size()));
+                routeText,ais.size(),wps.size(),trackPoints.size(),sonar.size()));
 
         if(followBoat&&pos!=null&&map!=null) {
             CameraPosition cp=map.getCameraPosition();
@@ -485,6 +546,101 @@ public class VectorOfflineMapActivity extends Activity implements LocationListen
         }
     }
 
+    private String formatEtaMinutes(double minutes) {
+        if(!Double.isFinite(minutes)||minutes<0)return "--";
+        long total=Math.round(minutes);
+        return String.format(Locale.US,"%02d:%02d",total/60,total%60);
+    }
+
+    private void evaluateAisAlarm(LatLng own,double sog,double cog,List<AisTarget> targets) {
+        if(!AppSettings.aisEnabled(this)||own==null||targets==null)return;
+        AisCollisionEngine.Assessment worst=null;
+        AisTarget worstTarget=null;
+        for(AisTarget t:targets) {
+            AisCollisionEngine.Assessment a=AisCollisionEngine.assess(
+                    own.getLatitude(),own.getLongitude(),sog,cog,t);
+            if(a.risk==AisCollisionEngine.Risk.DANGER||
+                    a.risk==AisCollisionEngine.Risk.WARNING) {
+                if(worst==null||riskRank(a.risk)>riskRank(worst.risk)) {
+                    worst=a;worstTarget=t;
+                }
+            }
+        }
+        if(worst!=null&&worstTarget!=null) {
+            safety.setText(String.format(Locale.US,
+                    "AIS %s • MMSI %d • CPA %.2fNM • TCPA %.0fmin",
+                    worst.risk.name(),worstTarget.mmsi,worst.cpaNm,worst.tcpaMinutes));
+            safety.setTextColor(worst.risk==AisCollisionEngine.Risk.DANGER?
+                    Color.rgb(255,65,65):Color.rgb(255,145,45));
+            long now=System.currentTimeMillis();
+            if(now-lastAisAlarmAt>12000L&&alarmTone!=null) {
+                alarmTone.startTone(
+                        worst.risk==AisCollisionEngine.Risk.DANGER?
+                                ToneGenerator.TONE_CDMA_ALERT_CALL_GUARD:
+                                ToneGenerator.TONE_PROP_BEEP2,
+                        700);
+                lastAisAlarmAt=now;
+            }
+        }
+    }
+
+    private int riskRank(AisCollisionEngine.Risk risk) {
+        if(risk==AisCollisionEngine.Risk.DANGER)return 4;
+        if(risk==AisCollisionEngine.Risk.WARNING)return 3;
+        if(risk==AisCollisionEngine.Risk.MONITOR)return 2;
+        if(risk==AisCollisionEngine.Risk.SAFE)return 1;
+        return 0;
+    }
+
+    private void showTrackExportDialog() {
+        new AlertDialog.Builder(this)
+                .setTitle("Export track")
+                .setItems(new String[]{"GPX","KML"},(d,which)->{
+                    Intent i=new Intent(Intent.ACTION_CREATE_DOCUMENT);
+                    i.addCategory(Intent.CATEGORY_OPENABLE);
+                    if(which==0) {
+                        i.setType("application/gpx+xml");
+                        i.putExtra(Intent.EXTRA_TITLE,"SEMBULUNG_TRACK.gpx");
+                        startActivityForResult(i,REQ_EXPORT_GPX);
+                    } else {
+                        i.setType("application/vnd.google-earth.kml+xml");
+                        i.putExtra(Intent.EXTRA_TITLE,"SEMBULUNG_TRACK.kml");
+                        startActivityForResult(i,REQ_EXPORT_KML);
+                    }
+                }).show();
+    }
+
+    private void writeTrackExport(Uri uri,boolean gpx) {
+        if(uri==null)return;
+        try(OutputStream out=getContentResolver().openOutputStream(uri)) {
+            if(out==null)throw new IllegalStateException("Output tidak dapat dibuka");
+            StringBuilder s=new StringBuilder();
+            if(gpx) {
+                s.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
+                s.append("<gpx version=\"1.1\" creator=\"SEMBULUNG NAVIGATOR\" xmlns=\"http://www.topografix.com/GPX/1/1\"><trk><name>SEMBULUNG Track</name><trkseg>\n");
+                for(LatLng p:trackPoints) {
+                    s.append(String.format(Locale.US,"<trkpt lat=\"%.7f\" lon=\"%.7f\"/>\n",
+                            p.getLatitude(),p.getLongitude()));
+                }
+                s.append("</trkseg></trk></gpx>\n");
+            } else {
+                s.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
+                s.append("<kml xmlns=\"http://www.opengis.net/kml/2.2\"><Document><Placemark><name>SEMBULUNG Track</name><LineString><coordinates>\n");
+                for(LatLng p:trackPoints) {
+                    s.append(String.format(Locale.US,"%.7f,%.7f,0 ",p.getLongitude(),p.getLatitude()));
+                }
+                s.append("\n</coordinates></LineString></Placemark></Document></kml>\n");
+            }
+            out.write(s.toString().getBytes("UTF-8"));
+            out.flush();
+            safety.setText("Track berhasil diexport • "+(gpx?"GPX":"KML"));
+            safety.setTextColor(Color.rgb(100,230,130));
+        } catch(Exception e) {
+            safety.setText("Export gagal: "+e.getMessage());
+            safety.setTextColor(Color.rgb(255,90,70));
+        }
+    }
+
     private LatLng currentLatLng() {
         if(gpsLocation!=null) return new LatLng(gpsLocation.getLatitude(),gpsLocation.getLongitude());
         NmeaDataStore.Snapshot n=NmeaDataStore.read(this);
@@ -574,7 +730,10 @@ public class VectorOfflineMapActivity extends Activity implements LocationListen
 
     @Override protected void onActivityResult(int requestCode,int resultCode,Intent data) {
         super.onActivityResult(requestCode,resultCode,data);
-        if(requestCode!=REQ_PMTILES||resultCode!=RESULT_OK||data==null||data.getData()==null)return;
+        if(resultCode!=RESULT_OK||data==null||data.getData()==null)return;
+        if(requestCode==REQ_EXPORT_GPX){writeTrackExport(data.getData(),true);return;}
+        if(requestCode==REQ_EXPORT_KML){writeTrackExport(data.getData(),false);return;}
+        if(requestCode!=REQ_PMTILES)return;
         Uri uri=data.getData();
         importButton.setEnabled(false);
         status.setText("Menyalin PMTiles…");
