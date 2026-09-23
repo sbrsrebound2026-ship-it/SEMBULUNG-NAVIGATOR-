@@ -1,4 +1,4 @@
-name: Build SEMBULUNG NAVIGATOR V24 Standalone APK
+name: Build SEMBULUNG NAVIGATOR V25 Standalone APK
 
 on:
   workflow_dispatch:
@@ -30,11 +30,11 @@ jobs:
           gradle-version: '8.9'
       - name: Unit tests
         run: gradle --no-daemon :app:testDebugUnitTest
-      - name: Build V24 standalone debug APK
+      - name: Build V25 standalone debug APK
         run: gradle --no-daemon :app:assembleDebug
       - uses: actions/upload-artifact@v4
         with:
-          name: SEMBULUNG-NAVIGATOR-v24-standalone-debug
+          name: SEMBULUNG-NAVIGATOR-v25-standalone-debug
           path: app/build/outputs/apk/debug/*.apk
           retention-days: 30
 
@@ -56,14 +56,14 @@ jobs:
           KEYSTORE_B64: ${{ secrets.SEMBULUNG_KEYSTORE_B64 }}
         run: |
           test -n "$KEYSTORE_B64"
-          echo "$KEYSTORE_B64" | base64 --decode > sembulung-v24-release.jks
+          echo "$KEYSTORE_B64" | base64 --decode > sembulung-v25-release.jks
 
       - name: Unit tests
         run: gradle --no-daemon :app:testDebugUnitTest
 
-      - name: Build signed V24 release APK
+      - name: Build signed V25 release APK
         env:
-          SEMBULUNG_STORE_FILE: sembulung-v24-release.jks
+          SEMBULUNG_STORE_FILE: sembulung-v25-release.jks
           SEMBULUNG_STORE_PASSWORD: ${{ secrets.SEMBULUNG_STORE_PASSWORD }}
           SEMBULUNG_KEY_ALIAS: ${{ secrets.SEMBULUNG_KEY_ALIAS }}
           SEMBULUNG_KEY_PASSWORD: ${{ secrets.SEMBULUNG_KEY_PASSWORD }}
@@ -83,7 +83,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: SEMBULUNG-NAVIGATOR-v24-standalone-release
+          name: SEMBULUNG-NAVIGATOR-v25-standalone-release
           path: |
             app/build/outputs/apk/release/*.apk
             APK_SHA256.txt
