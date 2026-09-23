@@ -78,7 +78,7 @@ public class HomeActivity extends Activity {
         code.setPadding(0,dp(24),0,0);
         root.addView(code);
 
-        TextView version = label("V25 STANDALONE • UNIFIED MARINE MAP", 11, false);
+        TextView version = label("V26 STANDALONE • ROUTE TRACK CPA SHALLOW ALARM", 11, false);
         version.setPadding(0,dp(12),0,0);
         root.addView(version);
 
