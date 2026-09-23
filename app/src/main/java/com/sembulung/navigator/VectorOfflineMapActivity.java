@@ -12,6 +12,8 @@ import android.graphics.PointF;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
+import android.media.AudioManager;
+import android.media.ToneGenerator;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
@@ -23,10 +25,13 @@ import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
+import com.sembulung.navigator.ais.AisCollisionEngine;
 import com.sembulung.navigator.ais.AisTarget;
 import com.sembulung.navigator.ais.AisTargetStore;
 import com.sembulung.navigator.sonar.DepthSample;
+import com.sembulung.navigator.sonar.SonarChartEngine;
 import com.sembulung.navigator.sonar.SonarChartStore;
+import com.sembulung.navigator.sonar.SonarHazardEngine;
 
 import org.maplibre.android.MapLibre;
 import org.maplibre.android.camera.CameraPosition;
@@ -42,9 +47,14 @@ import org.maplibre.android.style.sources.RasterSource;
 import org.maplibre.android.style.sources.TileSet;
 import org.maplibre.android.style.sources.VectorSource;
 
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileOutputStream;
+import java.io.FileReader;
+import java.io.FileWriter;
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
@@ -72,14 +82,25 @@ public class VectorOfflineMapActivity extends Activity implements LocationListen
     private Button importButton;
     private Button marineButton;
     private Button depthButton;
+    private Button routeTapButton;
+    private Button trackButton;
 
     private boolean marineOverlayEnabled = true;
     private boolean depthOverlayEnabled = false;
     private boolean pmtilesLoaded = false;
     private boolean followBoat = true;
+    private boolean routeTapMode = false;
+    private boolean trackRecording = false;
 
     private LocationManager locationManager;
     private Location gpsLocation;
+    private final List<LatLng> trackPoints = new ArrayList<>();
+    private LatLng lastTrackPoint;
+    private long lastTrackTime = 0L;
+    private long lastAlarmAt = 0L;
+    private long lastHazardBuildAt = 0L;
+    private SonarHazardEngine.Assessment cachedHazard;
+    private ToneGenerator alarmTone;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final Runnable liveTick = new Runnable() {
@@ -93,6 +114,8 @@ public class VectorOfflineMapActivity extends Activity implements LocationListen
         super.onCreate(savedInstanceState);
         MapLibre.getInstance(this);
         locationManager=(LocationManager)getSystemService(LOCATION_SERVICE);
+        alarmTone=new ToneGenerator(AudioManager.STREAM_ALARM,80);
+        loadTrack();
 
         FrameLayout root = new FrameLayout(this);
         root.setBackgroundColor(Color.rgb(4,24,43));
@@ -109,7 +132,7 @@ public class VectorOfflineMapActivity extends Activity implements LocationListen
         top.setPadding(dp(8),dp(7),dp(8),dp(7));
         top.setBackgroundColor(0xE904182B);
 
-        TextView title=label("SEMBULUNG UNIFIED MARINE MAP • V25",15,true);
+        TextView title=label("SEMBULUNG UNIFIED MARINE MAP • V26",15,true);
         top.addView(title);
 
         status=label("Menyiapkan MapLibre…",11,false);
@@ -163,9 +186,23 @@ public class VectorOfflineMapActivity extends Activity implements LocationListen
         row2.setOrientation(LinearLayout.HORIZONTAL);
         row2.setPadding(0,dp(3),0,0);
 
-        Button wp=button("WAYPOINT");
-        wp.setOnClickListener(v->startActivity(new Intent(this,NavigationActivity.class)));
-        row2.addView(wp,quarter());
+        routeTapButton=button("ROUTE TAP OFF");
+        routeTapButton.setOnClickListener(v->{
+            routeTapMode=!routeTapMode;
+            routeTapButton.setText(routeTapMode?"ROUTE TAP ON":"ROUTE TAP OFF");
+            routeTapButton.setAlpha(routeTapMode?1f:0.6f);
+            safety.setText(routeTapMode?"Ketuk peta untuk menambah titik rute":"LIVE OVERLAY: VESSEL • ROUTE • AIS • SOUNDINGS");
+        });
+        row2.addView(routeTapButton,quarter());
+
+        trackButton=button("TRACK REC OFF");
+        trackButton.setOnClickListener(v->{
+            trackRecording=!trackRecording;
+            trackButton.setText(trackRecording?"TRACK REC ON":"TRACK REC OFF");
+            trackButton.setAlpha(trackRecording?1f:0.6f);
+            if(trackRecording)recordTrackPoint();
+        });
+        row2.addView(trackButton,quarter());
 
         Button ais=button("AIS");
         ais.setOnClickListener(v->startActivity(new Intent(this,AisActivity.class)));
@@ -174,11 +211,32 @@ public class VectorOfflineMapActivity extends Activity implements LocationListen
         Button sonar=button("SONAR");
         sonar.setOnClickListener(v->startActivity(new Intent(this,SonarSurveyActivity.class)));
         row2.addView(sonar,quarter());
+        top.addView(row2);
+
+        LinearLayout row3=new LinearLayout(this);
+        row3.setOrientation(LinearLayout.HORIZONTAL);
+        row3.setPadding(0,dp(3),0,0);
+
+        Button wp=button("WAYPOINT");
+        wp.setOnClickListener(v->startActivity(new Intent(this,NavigationActivity.class)));
+        row3.addView(wp,quarter());
+
+        Button clearRoute=button("CLEAR ROUTE");
+        clearRoute.setOnClickListener(v->{
+            WaypointStore.save(this,new ArrayList<>());
+            WaypointStore.clearActive(this);
+            refreshLiveData();
+        });
+        row3.addView(clearRoute,quarter());
+
+        Button clearTrack=button("CLEAR TRACK");
+        clearTrack.setOnClickListener(v->clearTrack());
+        row3.addView(clearTrack,quarter());
 
         Button back=button("KEMBALI");
         back.setOnClickListener(v->finish());
-        row2.addView(back,quarter());
-        top.addView(row2);
+        row3.addView(back,quarter());
+        top.addView(row3);
 
         FrameLayout.LayoutParams topLp=new FrameLayout.LayoutParams(-1,-2,Gravity.TOP);
         root.addView(top,topLp);
@@ -195,6 +253,11 @@ public class VectorOfflineMapActivity extends Activity implements LocationListen
             map=m;
             map.setMinZoomPreference(0.0);
             map.setMaxZoomPreference(18.0);
+            map.addOnMapClickListener(point->{
+                if(!routeTapMode)return false;
+                addRoutePoint(point);
+                return true;
+            });
             loadBaseStyle();
             refreshLiveData();
         });
@@ -208,7 +271,7 @@ public class VectorOfflineMapActivity extends Activity implements LocationListen
         pmtilesLoaded=false;
         String styleJson="{"
                 +"\"version\":8,"
-                +"\"name\":\"SEMBULUNG UNIFIED V25\","
+                +"\"name\":\"SEMBULUNG UNIFIED V26\","
                 +"\"sources\":{},"
                 +"\"layers\":[{"
                 +"\"id\":\"background\","
