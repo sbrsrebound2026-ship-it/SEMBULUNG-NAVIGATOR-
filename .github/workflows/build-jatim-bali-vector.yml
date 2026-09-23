@@ -63,13 +63,14 @@ jobs:
           out.execute('CREATE UNIQUE INDEX tile_index ON tiles (zoom_level,tile_column,tile_row)')
 
           source_meta={}
-          counts={}
-          for idx,src in enumerate(sources):
-              alias=f's{idx}'
-              out.execute(f"ATTACH DATABASE ? AS {alias}",(src,))
-              meta=dict(out.execute(f'SELECT name,value FROM {alias}.metadata').fetchall())
-              if not source_meta: source_meta=meta
-              zooms=[r[0] for r in out.execute(f'SELECT DISTINCT zoom_level FROM {alias}.tiles ORDER BY zoom_level')]
+          per_source={}
+          for src in sources:
+              srccon=sqlite3.connect(f'file:{src}?mode=ro',uri=True)
+              meta=dict(srccon.execute('SELECT name,value FROM metadata').fetchall())
+              if not source_meta:
+                  source_meta=meta
+              zooms=[r[0] for r in srccon.execute('SELECT DISTINCT zoom_level FROM tiles ORDER BY zoom_level')]
+              src_counts={}
               for z in zooms:
                   n=2**z
                   x0,_=xyz(0,west,z)
@@ -78,16 +79,22 @@ jobs:
                   _,y_south=xyz(south,0,z)
                   row_min=n-1-y_south
                   row_max=n-1-y_north
-                  before=out.total_changes
-                  out.execute(f'''
-                    INSERT OR IGNORE INTO tiles(zoom_level,tile_column,tile_row,tile_data)
+                  cur=srccon.execute('''
                     SELECT zoom_level,tile_column,tile_row,tile_data
-                    FROM {alias}.tiles
+                    FROM tiles
                     WHERE zoom_level=? AND tile_column BETWEEN ? AND ? AND tile_row BETWEEN ? AND ?
                   ''',(z,min(x0,x1),max(x0,x1),min(row_min,row_max),max(row_min,row_max)))
-                  counts[z]=counts.get(z,0)+(out.total_changes-before)
-              out.commit()
-              out.execute(f'DETACH DATABASE {alias}')
+                  inserted=0
+                  while True:
+                      rows=cur.fetchmany(1000)
+                      if not rows: break
+                      before=out.total_changes
+                      out.executemany('INSERT OR IGNORE INTO tiles(zoom_level,tile_column,tile_row,tile_data) VALUES(?,?,?,?)',rows)
+                      inserted += out.total_changes-before
+                  src_counts[z]=inserted
+                  out.commit()
+              per_source[os.path.basename(src)]=src_counts
+              srccon.close()
 
           nonempty=[r[0] for r in out.execute('SELECT DISTINCT zoom_level FROM tiles ORDER BY zoom_level')]
           md={k:v for k,v in source_meta.items() if k not in ('name','bounds','center','minzoom','maxzoom')}
@@ -107,16 +114,16 @@ jobs:
 
           size=os.path.getsize(dst)
           sha=hashlib.sha256(open(dst,'rb').read()).hexdigest()
+          con=sqlite3.connect(dst)
           report={
               'file':os.path.basename(dst),
               'bounds':[west,south,east,north],
               'zooms':nonempty,
-              'tiles_by_zoom':{},
+              'tiles_by_zoom':{str(z):cnt for z,cnt in con.execute('SELECT zoom_level,COUNT(*) FROM tiles GROUP BY zoom_level ORDER BY zoom_level')},
+              'per_source_inserted':per_source,
               'size_bytes':size,
               'sha256':sha
           }
-          con=sqlite3.connect(dst)
-          report['tiles_by_zoom']={str(z):c for z,c in con.execute('SELECT zoom_level,COUNT(*) FROM tiles GROUP BY zoom_level ORDER BY zoom_level')}
           con.close()
           open('/tmp/REPORT_VECTOR.json','w').write(json.dumps(report,indent=2))
           print(json.dumps(report,indent=2))
