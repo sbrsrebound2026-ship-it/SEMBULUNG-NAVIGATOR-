@@ -34,8 +34,8 @@ android {
         applicationId 'com.sembulung.navigator'
         minSdk 23
         targetSdk 35
-        versionCode 24
-        versionName '2.3.0-standalone-v24'
+        versionCode 25
+        versionName '2.4.0-standalone-v25'
     }
 
     signingConfigs {
