@@ -2,15 +2,21 @@
 
 **SEMBULUNG NAVIGATOR — BY WONG MBRAYU** is a standalone clean-room Android marine navigation application.
 
-Current build: **V24 Standalone — Marine Chart Layer**
+Current build: **V25 Standalone — Unified Marine Map**
 
 - Application ID: `com.sembulung.navigator`
-- Version: `2.3.0-standalone-v24`
+- Version: `2.4.0-standalone-v25`
 - Tagline: **Navigasi Laut Presisi**
 - This project does not depend on, wrap, patch, or re-sign the Boating/Navionics APK.
 - Device-bound ECDSA activation is built into the app.
 - One Device Code receives one Activation Key; a key issued for another device is rejected.
 - Only the activation public key is stored in the repository.
+
+## Unified Map V25
+
+The primary navigation screen now combines the offline PMTiles basemap, OpenSeaMap seamarks, optional GEBCO bathymetry, own-vessel GPS/NMEA position, SOG/COG, active waypoint route guidance, AIS targets with CPA/TCPA risk classes, and local sonar sounding/contour overlays in one MapLibre screen.
+
+The app can switch position source between AUTO, device GPS, and NMEA. AIS and sonar layers can be toggled without leaving the map. Long-press SONAR opens the survey/data center.
 
 ## Implemented modules
 
