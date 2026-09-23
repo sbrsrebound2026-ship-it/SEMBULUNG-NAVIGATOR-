@@ -17,8 +17,12 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq sqlite3
-          go install github.com/protomaps/go-pmtiles/cmd/pmtiles@latest
-          echo "$HOME/go/bin" >> "$GITHUB_PATH"
+          curl -L --fail --retry 3 \
+            -o /tmp/pmtiles.tar.gz \
+            https://github.com/protomaps/go-pmtiles/releases/download/v1.31.2/go-pmtiles_1.31.2_Linux_x86_64.tar.gz
+          tar -xzf /tmp/pmtiles.tar.gz -C /tmp
+          sudo install -m 0755 /tmp/pmtiles /usr/local/bin/pmtiles
+          pmtiles version
 
       - name: Download Geofabrik Shortbread MBTiles
         run: |
