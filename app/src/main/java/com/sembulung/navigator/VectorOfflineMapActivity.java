@@ -35,6 +35,12 @@ public class VectorOfflineMapActivity extends Activity {
     private static final String FILE_NAME = "sembulung_jatim_bali.pmtiles";
     private static final String SEAMARK_TILES =
             "https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png";
+    private static final String GEBCO_WMS =
+            "https://geoserver.openseamap.org/geoserver/gwc/service/wms"
+            + "?SERVICE=WMS&REQUEST=GetMap&VERSION=1.1.1"
+            + "&LAYERS=gebco2021%3Agebco_2021&STYLES="
+            + "&FORMAT=image%2Fpng&TRANSPARENT=true"
+            + "&SRS=EPSG%3A3857&BBOX={bbox-epsg-3857}&WIDTH=256&HEIGHT=256";
 
     private MapView mapView;
     private MapLibreMap map;
@@ -42,7 +48,9 @@ public class VectorOfflineMapActivity extends Activity {
     private TextView safety;
     private Button importButton;
     private Button marineButton;
+    private Button depthButton;
     private boolean marineOverlayEnabled = true;
+    private boolean depthOverlayEnabled = false;
     private boolean pmtilesLoaded = false;
 
     @Override protected void onCreate(Bundle savedInstanceState) {
@@ -80,7 +88,7 @@ public class VectorOfflineMapActivity extends Activity {
 
         importButton = button("IMPOR .PMTILES");
         importButton.setOnClickListener(v -> choosePmtiles());
-        row1.addView(importButton, half());
+        row1.addView(importButton, third());
 
         marineButton = button("MARINE ON");
         marineButton.setOnClickListener(v -> {
@@ -88,7 +96,15 @@ public class VectorOfflineMapActivity extends Activity {
             updateMarineButton();
             loadBaseStyle();
         });
-        row1.addView(marineButton, half());
+        row1.addView(marineButton, third());
+
+        depthButton = button("DEPTH OFF");
+        depthButton.setOnClickListener(v -> {
+            depthOverlayEnabled = !depthOverlayEnabled;
+            updateDepthButton();
+            loadBaseStyle();
+        });
+        row1.addView(depthButton, third());
         top.addView(row1);
 
         LinearLayout row2 = new LinearLayout(this);
@@ -116,7 +132,7 @@ public class VectorOfflineMapActivity extends Activity {
         root.addView(top,topLp);
 
         TextView attribution = label(
-                "© OpenStreetMap contributors • Geofabrik • OpenSeaMap • MapLibre",10,false);
+                "© OSM contributors • Geofabrik • OpenSeaMap • GEBCO • MapLibre",10,false);
         attribution.setPadding(dp(8),dp(4),dp(8),dp(4));
         attribution.setBackgroundColor(0xC003172A);
         FrameLayout.LayoutParams attrLp = new FrameLayout.LayoutParams(
@@ -153,6 +169,7 @@ public class VectorOfflineMapActivity extends Activity {
         map.setStyle(new Style.Builder().fromJson(styleJson), style -> {
             File f = localPmtiles();
             if(f.exists() && f.length() > 0) addPmtiles(style,f);
+            addDepthOverlay(style);
             addMarineOverlay(style);
             updateStatus(f);
             centerBanyuwangi();
@@ -184,6 +201,25 @@ public class VectorOfflineMapActivity extends Activity {
         }
     }
 
+    private void addDepthOverlay(Style style) {
+        if(!depthOverlayEnabled) return;
+        try {
+            TileSet tileSet = new TileSet("2.1.0", GEBCO_WMS);
+            RasterSource source = new RasterSource("openseamap-gebco",tileSet,256);
+            style.addSource(source);
+
+            RasterLayer layer = new RasterLayer(
+                    "openseamap-gebco-layer","openseamap-gebco");
+            layer.setProperties(
+                    PropertyFactory.rasterOpacity(0.62f),
+                    PropertyFactory.rasterFadeDuration(0f)
+            );
+            style.addLayer(layer);
+        } catch(Exception e) {
+            safety.setText("Depth overlay gagal • " + e.getClass().getSimpleName());
+        }
+    }
+
     private void addMarineOverlay(Style style) {
         if(!marineOverlayEnabled) return;
         try {
@@ -208,17 +244,25 @@ public class VectorOfflineMapActivity extends Activity {
                 ? String.format(Locale.US,"PMTiles OFFLINE %.1f MB",f.length()/1048576.0)
                 : "Basemap kosong • impor PMTiles";
         String marine = marineOverlayEnabled
-                ? "OpenSeaMap seamarks ONLINE"
-                : "marine overlay OFF";
-        status.setText(base + " • " + marine);
-        safety.setText(marineOverlayEnabled
-                ? "BUOY • BEACON • LIGHT • SEAMARK • HARBOUR DATA • OPEN DATA"
+                ? "seamarks ONLINE"
+                : "seamarks OFF";
+        String depth = depthOverlayEnabled
+                ? "GEBCO depth ONLINE"
+                : "depth OFF";
+        status.setText(base + " • " + marine + " • " + depth);
+        safety.setText((marineOverlayEnabled || depthOverlayEnabled)
+                ? "BUOY • BEACON • LIGHT • DEPTH RELIEF • OPEN DATA"
                 : "OPEN DATA • gunakan bersama peta laut resmi");
     }
 
     private void updateMarineButton() {
         marineButton.setText(marineOverlayEnabled ? "MARINE ON" : "MARINE OFF");
         marineButton.setAlpha(marineOverlayEnabled ? 1f : 0.6f);
+    }
+
+    private void updateDepthButton() {
+        depthButton.setText(depthOverlayEnabled ? "DEPTH ON" : "DEPTH OFF");
+        depthButton.setAlpha(depthOverlayEnabled ? 1f : 0.6f);
     }
 
     private void addFill(Style style,String id,String sourceLayer,int color,float opacity) {
