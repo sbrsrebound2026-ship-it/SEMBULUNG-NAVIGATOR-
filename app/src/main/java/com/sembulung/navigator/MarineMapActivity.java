@@ -24,6 +24,7 @@ import android.widget.Toast;
 
 import com.sembulung.navigator.ais.AisTarget;
 import com.sembulung.navigator.ais.AisTargetStore;
+import com.sembulung.navigator.sonar.BathymetryStyle;
 import com.sembulung.navigator.sonar.DepthSample;
 import com.sembulung.navigator.sonar.SonarChartEngine;
 import com.sembulung.navigator.sonar.SonarChartStore;
@@ -80,6 +81,7 @@ public class MarineMapActivity extends Activity implements LocationListener {
     private Double lastSoundingLat;
     private Double lastSoundingLon;
     private int newSoundings;
+    private String lastBathymetryProfile="";
 
     private boolean sonarEnabled=true;
     private boolean sonarShading=true;
@@ -339,7 +341,10 @@ public class MarineMapActivity extends Activity implements LocationListener {
                 "Depth Shading: "+(sonarShading?"ON":"OFF"),
                 "Contour Vector: "+(sonarContours?"ON":"OFF"),
                 "Soundings: "+(sonarSoundings?"ON":"OFF"),
-                "Bangun Ulang Kontur",
+                "Relief Bathymetry: "+(AppSettings.sonarRelief(this)?"ON":"OFF"),
+                "Survey Coverage Mask: "+(AppSettings.sonarCoverageMask(this)?"ON":"OFF"),
+                "Label Major Contour: "+(AppSettings.sonarContourLabels(this)?"ON":"OFF"),
+                "Bangun Ulang Bathymetry",
                 "Survey Center / Data Sonar",
                 "Hapus Semua Sounding"
         };
@@ -358,10 +363,17 @@ public class MarineMapActivity extends Activity implements LocationListener {
                     }else if(w==3){
                         sonarSoundings=!sonarSoundings;
                     }else if(w==4){
-                        rebuildSonarChart();
+                        AppSettings.sonarRelief(this,!AppSettings.sonarRelief(this));
                     }else if(w==5){
-                        startActivity(new Intent(this,SonarSurveyActivity.class));
+                        AppSettings.sonarCoverageMask(this,!AppSettings.sonarCoverageMask(this));
                     }else if(w==6){
+                        AppSettings.sonarContourLabels(this,!AppSettings.sonarContourLabels(this));
+                    }else if(w==7){
+                        lastBathymetryProfile="";
+                        rebuildSonarChart();
+                    }else if(w==8){
+                        startActivity(new Intent(this,SonarSurveyActivity.class));
+                    }else if(w==9){
                         confirmClearSonar();
                     }
                     applySonarLayers();
@@ -412,6 +424,18 @@ public class MarineMapActivity extends Activity implements LocationListener {
     private void applySonarLayers(){
         if(map!=null){
             map.sonarLayers(sonarEnabled,sonarShading,sonarContours,sonarSoundings);
+            double renderInterval=sonarChart!=null&&sonarChart.stats!=null&&Double.isFinite(sonarChart.stats.contourIntervalMeters)
+                    ?sonarChart.stats.contourIntervalMeters
+                    :BathymetryStyle.contourInterval(
+                            AppSettings.contourIntervalMeters(this),
+                            AppSettings.sonarDensity(this),
+                            map.zoomLevel());
+            map.sonarRenderOptions(
+                    AppSettings.sonarDensity(this),
+                    AppSettings.sonarRelief(this),
+                    AppSettings.sonarCoverageMask(this),
+                    AppSettings.sonarContourLabels(this),
+                    renderInterval);
         }
         if(sonarButton!=null){
             sonarButton.setText(sonarEnabled?"SC ON":"SC OFF");
@@ -424,7 +448,8 @@ public class MarineMapActivity extends Activity implements LocationListener {
         if(title==null)return;
         int count=sonarChart!=null?sonarChart.stats.acceptedSoundings:sonarSamples.size();
         MarineServiceState.Snapshot ms=MarineServiceState.read(this);
-        title.setText("SEMBULUNG MARINE • V19 • "+(ms.running?"SERVICE LIVE":"SERVICE OFF")+" • "+count+" SOUNDING");
+        String density=AppSettings.sonarDensity(this);
+        title.setText("SEMBULUNG MARINE • V20 • "+(ms.running?"SERVICE LIVE":"SERVICE OFF")+" • "+count+" SOUNDING • "+density);
     }
 
     private void maybeRecordSonar(){
@@ -482,23 +507,47 @@ public class MarineMapActivity extends Activity implements LocationListener {
     }
 
     private void rebuildSonarChart(){
-        if(!chartBuilding.compareAndSet(false,true))return;
+        if(map==null||!chartBuilding.compareAndSet(false,true))return;
+
+        final String density=AppSettings.sonarDensity(this);
+        final int zoom=map.zoomLevel();
+        final double configured=AppSettings.contourIntervalMeters(this);
+        final double cellMeters=BathymetryStyle.cellMeters(density,zoom);
+        final double interval=BathymetryStyle.contourInterval(configured,density,zoom);
+        final String profile=BathymetryStyle.profileKey(density,zoom,configured);
+        lastBathymetryProfile=profile;
+
         final ArrayList<DepthSample> copy=new ArrayList<>(
                 SonarSampleFilter.apply(sonarSamples,AppSettings.sonarQualityMode(this)));
 
         new Thread(()->{
             try{
-                SonarChartEngine.Chart chart=SonarChartEngine.build(copy,20.0,AppSettings.contourIntervalMeters(this));
+                SonarChartEngine.Chart chart=SonarChartEngine.build(copy,cellMeters,interval);
                 runOnUiThread(()->{
                     sonarChart=chart;
                     newSoundings=0;
                     map.sonarChart(chart);
+                    map.sonarRenderOptions(
+                            density,
+                            AppSettings.sonarRelief(this),
+                            AppSettings.sonarCoverageMask(this),
+                            AppSettings.sonarContourLabels(this),
+                            interval);
                     updateTitle();
                 });
             }finally{
                 chartBuilding.set(false);
             }
-        },"Sembulung-SonarChart").start();
+        },"Sembulung-Bathymetry-V20").start();
+    }
+
+    private void maybeRebuildBathymetryForZoom(){
+        if(map==null||sonarSamples.size()<3||chartBuilding.get())return;
+        String profile=BathymetryStyle.profileKey(
+                AppSettings.sonarDensity(this),
+                map.zoomLevel(),
+                AppSettings.contourIntervalMeters(this));
+        if(!profile.equals(lastBathymetryProfile))rebuildSonarChart();
     }
 
     private void startGps(){
@@ -618,6 +667,7 @@ public class MarineMapActivity extends Activity implements LocationListener {
 
         loadMapOverlays();
         maybeRecordSonar();
+        maybeRebuildBathymetryForZoom();
         updateGuidanceAndSafety();
 
         if(AppSettings.shallowWarning(this)
