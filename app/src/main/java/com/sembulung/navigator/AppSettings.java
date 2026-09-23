@@ -63,4 +63,16 @@ public final class AppSettings {
 
     public static String sonarQualityMode(Context c){return p(c).getString("sonar_quality_mode","GOOD_AND_QUESTIONABLE");}
     public static void sonarQualityMode(Context c,String v){p(c).edit().putString("sonar_quality_mode",v).apply();}
+
+    public static String sonarDensity(Context c){return p(c).getString("sonar_density","HIGH");}
+    public static void sonarDensity(Context c,String v){p(c).edit().putString("sonar_density",v).apply();}
+
+    public static boolean sonarRelief(Context c){return p(c).getBoolean("sonar_relief",true);}
+    public static void sonarRelief(Context c,boolean v){p(c).edit().putBoolean("sonar_relief",v).apply();}
+
+    public static boolean sonarCoverageMask(Context c){return p(c).getBoolean("sonar_coverage_mask",true);}
+    public static void sonarCoverageMask(Context c,boolean v){p(c).edit().putBoolean("sonar_coverage_mask",v).apply();}
+
+    public static boolean sonarContourLabels(Context c){return p(c).getBoolean("sonar_contour_labels",true);}
+    public static void sonarContourLabels(Context c,boolean v){p(c).edit().putBoolean("sonar_contour_labels",v).apply();}
 }
