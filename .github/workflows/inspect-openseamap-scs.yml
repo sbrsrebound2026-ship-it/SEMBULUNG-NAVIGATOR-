@@ -1,0 +1,104 @@
+name: Inspect OpenSeaMap South China Sea MBTiles
+
+on:
+  push:
+    paths:
+      - '.github/workflows/inspect-openseamap-scs.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install sqlite3
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq sqlite3
+      - name: Download MBTiles
+        run: |
+          curl -L --fail --retry 3 --retry-delay 5 \
+            -o /tmp/SouthChineseSea.mbtiles \
+            https://ftp.gwdg.de/pub/misc/openstreetmap/openseamap/charts/mbtiles/OSM-OpenCPN2-SouthChineseSea.mbtiles
+          ls -lh /tmp/SouthChineseSea.mbtiles
+          sha256sum /tmp/SouthChineseSea.mbtiles > /tmp/chart_sha256.txt
+      - name: Inspect database
+        shell: bash
+        run: |
+          set -e
+          DB=/tmp/SouthChineseSea.mbtiles
+          OUT=/tmp/inspection.txt
+          {
+            echo "=== FILE ==="
+            ls -l "$DB"
+            file "$DB"
+            cat /tmp/chart_sha256.txt
+            echo
+            echo "=== TABLES ==="
+            sqlite3 -readonly "$DB" ".tables"
+            echo
+            echo "=== SCHEMA metadata ==="
+            sqlite3 -readonly "$DB" ".schema metadata"
+            echo
+            echo "=== SCHEMA tiles ==="
+            sqlite3 -readonly "$DB" ".schema tiles"
+            echo
+            echo "=== METADATA ==="
+            sqlite3 -readonly -header -column "$DB" "SELECT name,value FROM metadata ORDER BY name;"
+            echo
+            echo "=== ZOOM RANGE ==="
+            sqlite3 -readonly -header -column "$DB" "SELECT MIN(zoom_level) AS min_zoom, MAX(zoom_level) AS max_zoom, COUNT(DISTINCT zoom_level) AS zoom_levels FROM tiles;"
+            echo
+            echo "=== TILE COUNTS BY ZOOM ==="
+            sqlite3 -readonly -header -column "$DB" "SELECT zoom_level, COUNT(*) AS tiles FROM tiles GROUP BY zoom_level ORDER BY zoom_level;"
+            echo
+            echo "=== SAMPLE TILE MAGIC ==="
+            sqlite3 -readonly -header -column "$DB" "SELECT zoom_level,tile_column,tile_row,length(tile_data) AS bytes,hex(substr(tile_data,1,16)) AS magic FROM tiles ORDER BY zoom_level DESC LIMIT 10;"
+          } > "$OUT"
+      - name: Coverage test for Indonesia points
+        run: |
+          python3 - <<'PY' >> /tmp/inspection.txt
+          import sqlite3, math, json
+          db='/tmp/SouthChineseSea.mbtiles'
+          con=sqlite3.connect(f'file:{db}?mode=ro', uri=True)
+          cur=con.cursor()
+          meta=dict(cur.execute('select name,value from metadata').fetchall())
+          zs=[r[0] for r in cur.execute('select distinct zoom_level from tiles order by zoom_level')]
+          points={
+            'Jakarta':(-6.2000,106.8167),
+            'Banyuwangi':(-8.2192,114.3691),
+            'Denpasar_Bali':(-8.6500,115.2167),
+            'Batam':(1.0456,104.0305),
+            'Balikpapan':(-1.2379,116.8529),
+            'Makassar':(-5.1477,119.4327),
+            'Pontianak':(-0.0263,109.3425),
+            'Manado':(1.4748,124.8421),
+            'Kupang':(-10.1772,123.6070),
+          }
+          def xyz(lat,lon,z):
+              n=2**z
+              x=int((lon+180.0)/360.0*n)
+              latr=math.radians(lat)
+              y=int((1-math.asinh(math.tan(latr))/math.pi)/2*n)
+              return x,y
+          print('\n=== INDONESIA POINT COVERAGE TEST ===')
+          print('metadata scheme=',meta.get('scheme','(missing; MBTiles default is tms)'))
+          for name,(lat,lon) in points.items():
+              present=[]
+              for z in zs:
+                  x,yxyz=xyz(lat,lon,z)
+                  ytms=(2**z-1)-yxyz
+                  # try TMS first, then XYZ in case producer stores XYZ
+                  tms=cur.execute('select 1 from tiles where zoom_level=? and tile_column=? and tile_row=? limit 1',(z,x,ytms)).fetchone()
+                  xyzrow=cur.execute('select 1 from tiles where zoom_level=? and tile_column=? and tile_row=? limit 1',(z,x,yxyz)).fetchone()
+                  if tms or xyzrow:
+                      present.append((z,'TMS' if tms else 'XYZ'))
+              print(f'{name:16s} {lat:9.4f},{lon:10.4f} -> {present if present else "NO TILE"}')
+          con.close()
+          PY
+      - name: Upload report
+        uses: actions/upload-artifact@v4
+        with:
+          name: openseamap-south-china-sea-inspection
+          path: /tmp/inspection.txt
+          retention-days: 1
