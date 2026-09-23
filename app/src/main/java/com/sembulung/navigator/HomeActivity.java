@@ -53,7 +53,7 @@ public class HomeActivity extends Activity {
         offline.setOnClickListener(v -> startActivity(new Intent(this, OfflineMapActivity.class)));
         root.addView(offline, lp());
 
-        Button vectorOffline = button("PETA DETAIL VECTOR • PMTILES");
+        Button vectorOffline = button("MARINE CHART DETAIL • PMTILES + SEAMARKS");
         vectorOffline.setOnClickListener(v -> startActivity(new Intent(this, VectorOfflineMapActivity.class)));
         root.addView(vectorOffline, lp());
 
@@ -78,7 +78,7 @@ public class HomeActivity extends Activity {
         code.setPadding(0,dp(24),0,0);
         root.addView(code);
 
-        TextView version = label("V23 STANDALONE • MAPLIBRE PMTILES", 11, false);
+        TextView version = label("V24 STANDALONE • MARINE CHART LAYER", 11, false);
         version.setPadding(0,dp(12),0,0);
         root.addView(version);
 
