@@ -49,9 +49,13 @@ public class HomeActivity extends Activity {
         search.setOnClickListener(v -> startActivity(new Intent(this, SearchCoordinateActivity.class)));
         root.addView(search, lp());
 
-        Button offline = button("PETA OFFLINE • IMPOR MBTILES");
+        Button offline = button("PETA OFFLINE • RASTER MBTILES");
         offline.setOnClickListener(v -> startActivity(new Intent(this, OfflineMapActivity.class)));
         root.addView(offline, lp());
+
+        Button vectorOffline = button("PETA DETAIL VECTOR • PMTILES");
+        vectorOffline.setOnClickListener(v -> startActivity(new Intent(this, VectorOfflineMapActivity.class)));
+        root.addView(vectorOffline, lp());
 
         Button sonarSurvey = button("SONAR SURVEY CENTER");
         sonarSurvey.setOnClickListener(v -> startActivity(new Intent(this, SonarSurveyActivity.class)));
@@ -74,7 +78,7 @@ public class HomeActivity extends Activity {
         code.setPadding(0,dp(24),0,0);
         root.addView(code);
 
-        TextView version = label("V22 STANDALONE • SMART OFFLINE MBTILES", 11, false);
+        TextView version = label("V23 STANDALONE • MAPLIBRE PMTILES", 11, false);
         version.setPadding(0,dp(12),0,0);
         root.addView(version);
 
