@@ -110,12 +110,15 @@ public class SonarSurveyActivity extends Activity {
             else rejected++;
         }
         List<DepthSample> filtered=SonarSampleFilter.apply(all,AppSettings.sonarQualityMode(this));
-        SonarChartEngine.Chart chart=SonarChartEngine.build(filtered,20.0,AppSettings.contourIntervalMeters(this));
+        String density=AppSettings.sonarDensity(this);
+        double cell=BathymetryStyle.cellMeters(density,14);
+        double interval=BathymetryStyle.contourInterval(AppSettings.contourIntervalMeters(this),density,14);
+        SonarChartEngine.Chart chart=SonarChartEngine.build(filtered,cell,interval);
         stats.setText(String.format(Locale.US,
-                "STATISTIK\nTotal %d • GOOD %d • QUESTIONABLE %d • REJECTED %d\nDipakai %d • Depth %s–%s m • Mean %s m\nCoverage %.2f ha • Kontur %.1f m • %s",
+                "STATISTIK\nTotal %d • GOOD %d • QUESTIONABLE %d • REJECTED %d\nDipakai %d • Depth %s–%s m • Mean %s m\nCoverage %.2f ha • Kontur %.1f m • Density %s • Confidence %.0f%% • %s",
                 all.size(),good,q,rejected,filtered.size(),
                 fmt(chart.stats.minDepth),fmt(chart.stats.maxDepth),fmt(chart.stats.meanDepth),
-                chart.stats.coverageSquareMeters/10000.0,AppSettings.contourIntervalMeters(this),
+                chart.stats.coverageSquareMeters/10000.0,interval,density,chart.stats.meanConfidence*100.0,
                 "GOOD_ONLY".equals(AppSettings.sonarQualityMode(this))?"Hanya GOOD":"GOOD + QUESTIONABLE"));
 
         File active=sessions.activeFile();
