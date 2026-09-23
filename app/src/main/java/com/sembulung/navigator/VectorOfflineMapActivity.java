@@ -6,7 +6,6 @@ import android.graphics.Color;
 import android.net.Uri;
 import android.os.Bundle;
 import android.view.Gravity;
-import android.view.View;
 import android.widget.Button;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
@@ -21,6 +20,9 @@ import org.maplibre.android.maps.Style;
 import org.maplibre.android.style.layers.FillLayer;
 import org.maplibre.android.style.layers.LineLayer;
 import org.maplibre.android.style.layers.PropertyFactory;
+import org.maplibre.android.style.layers.RasterLayer;
+import org.maplibre.android.style.sources.RasterSource;
+import org.maplibre.android.style.sources.TileSet;
 import org.maplibre.android.style.sources.VectorSource;
 
 import java.io.File;
@@ -31,11 +33,17 @@ import java.util.Locale;
 public class VectorOfflineMapActivity extends Activity {
     private static final int REQ_PMTILES = 940;
     private static final String FILE_NAME = "sembulung_jatim_bali.pmtiles";
+    private static final String SEAMARK_TILES =
+            "https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png";
 
     private MapView mapView;
     private MapLibreMap map;
     private TextView status;
+    private TextView safety;
     private Button importButton;
+    private Button marineButton;
+    private boolean marineOverlayEnabled = true;
+    private boolean pmtilesLoaded = false;
 
     @Override protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -53,31 +61,53 @@ public class VectorOfflineMapActivity extends Activity {
         LinearLayout top = new LinearLayout(this);
         top.setOrientation(LinearLayout.VERTICAL);
         top.setPadding(dp(10),dp(8),dp(10),dp(8));
-        top.setBackgroundColor(0xD904182B);
+        top.setBackgroundColor(0xE604182B);
 
-        TextView title = label("SEMBULUNG VECTOR MARINE MAP",16,true);
+        TextView title = label("SEMBULUNG MARINE CHART • V24",16,true);
         top.addView(title);
 
-        status = label("Menyiapkan MapLibre…",12,false);
-        status.setPadding(0,dp(4),0,dp(6));
+        status = label("Menyiapkan MapLibre + marine layers…",12,false);
+        status.setPadding(0,dp(4),0,dp(5));
         top.addView(status);
 
-        LinearLayout buttons = new LinearLayout(this);
-        buttons.setOrientation(LinearLayout.HORIZONTAL);
+        safety = label("OPEN DATA • gunakan bersama peta laut resmi",10,true);
+        safety.setTextColor(0xffffd764);
+        safety.setPadding(0,0,0,dp(6));
+        top.addView(safety);
+
+        LinearLayout row1 = new LinearLayout(this);
+        row1.setOrientation(LinearLayout.HORIZONTAL);
 
         importButton = button("IMPOR .PMTILES");
         importButton.setOnClickListener(v -> choosePmtiles());
-        buttons.addView(importButton, half());
+        row1.addView(importButton, half());
+
+        marineButton = button("MARINE ON");
+        marineButton.setOnClickListener(v -> {
+            marineOverlayEnabled = !marineOverlayEnabled;
+            updateMarineButton();
+            loadBaseStyle();
+        });
+        row1.addView(marineButton, half());
+        top.addView(row1);
+
+        LinearLayout row2 = new LinearLayout(this);
+        row2.setOrientation(LinearLayout.HORIZONTAL);
+        row2.setPadding(0,dp(4),0,0);
 
         Button center = button("BANYUWANGI");
         center.setOnClickListener(v -> centerBanyuwangi());
-        buttons.addView(center, half());
+        row2.addView(center, third());
+
+        Button sonar = button("SONAR / DEPTH");
+        sonar.setOnClickListener(v -> startActivity(new Intent(this,MarineMapActivity.class)));
+        row2.addView(sonar, third());
 
         Button back = button("KEMBALI");
         back.setOnClickListener(v -> finish());
-        buttons.addView(back, half());
+        row2.addView(back, third());
 
-        top.addView(buttons);
+        top.addView(row2);
 
         FrameLayout.LayoutParams topLp = new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
@@ -85,9 +115,10 @@ public class VectorOfflineMapActivity extends Activity {
                 Gravity.TOP);
         root.addView(top,topLp);
 
-        TextView attribution = label("© OpenStreetMap contributors • Geofabrik • MapLibre",10,false);
+        TextView attribution = label(
+                "© OpenStreetMap contributors • Geofabrik • OpenSeaMap • MapLibre",10,false);
         attribution.setPadding(dp(8),dp(4),dp(8),dp(4));
-        attribution.setBackgroundColor(0xAA03172A);
+        attribution.setBackgroundColor(0xC003172A);
         FrameLayout.LayoutParams attrLp = new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.WRAP_CONTENT,
                 FrameLayout.LayoutParams.WRAP_CONTENT,
@@ -106,9 +137,11 @@ public class VectorOfflineMapActivity extends Activity {
 
     private void loadBaseStyle() {
         if(map == null) return;
+        pmtilesLoaded = false;
+
         String styleJson = "{"
                 + "\"version\":8,"
-                + "\"name\":\"SEMBULUNG OFFLINE\","
+                + "\"name\":\"SEMBULUNG MARINE V24\","
                 + "\"sources\":{},"
                 + "\"layers\":[{"
                 + "\"id\":\"background\","
@@ -116,14 +149,13 @@ public class VectorOfflineMapActivity extends Activity {
                 + "\"paint\":{\"background-color\":\"#0A3654\"}"
                 + "}]"
                 + "}";
+
         map.setStyle(new Style.Builder().fromJson(styleJson), style -> {
             File f = localPmtiles();
-            if(f.exists() && f.length() > 0) {
-                addPmtiles(style,f);
-            } else {
-                status.setText("Belum ada peta detail. Tekan IMPOR .PMTILES.");
-                centerBanyuwangi();
-            }
+            if(f.exists() && f.length() > 0) addPmtiles(style,f);
+            addMarineOverlay(style);
+            updateStatus(f);
+            centerBanyuwangi();
         });
     }
 
@@ -133,25 +165,60 @@ public class VectorOfflineMapActivity extends Activity {
             VectorSource source = new VectorSource("sembulung-vector", uri);
             style.addSource(source);
 
-            addFill(style,"ocean-fill","ocean",Color.rgb(10,74,112),1.0f);
-            addFill(style,"land-fill","land",Color.rgb(213,207,177),1.0f);
-            addFill(style,"water-fill","water_polygons",Color.rgb(41,132,176),1.0f);
-            addFill(style,"building-fill","buildings",Color.rgb(184,177,157),0.88f);
-            addFill(style,"pier-fill","pier_polygons",Color.rgb(146,139,119),0.95f);
+            addFill(style,"ocean-fill","ocean",Color.rgb(8,70,108),1.0f);
+            addFill(style,"land-fill","land",Color.rgb(222,216,188),1.0f);
+            addFill(style,"water-fill","water_polygons",Color.rgb(44,142,184),1.0f);
+            addFill(style,"building-fill","buildings",Color.rgb(190,181,158),0.82f);
+            addFill(style,"pier-fill","pier_polygons",Color.rgb(145,136,112),0.95f);
 
-            addLine(style,"boundary-line","boundaries",Color.rgb(140,154,162),1.1f);
-            addLine(style,"water-line","water_lines",Color.rgb(38,142,190),1.2f);
-            addLine(style,"pier-line","pier_lines",Color.rgb(112,103,82),1.4f);
-            addLine(style,"street-line","streets",Color.rgb(93,83,66),1.4f);
-            addLine(style,"ferry-line","ferries",Color.rgb(34,210,240),1.8f);
+            addLine(style,"boundary-line","boundaries",Color.rgb(131,148,158),1.0f);
+            addLine(style,"water-line","water_lines",Color.rgb(44,151,195),1.2f);
+            addLine(style,"pier-line","pier_lines",Color.rgb(100,91,69),1.5f);
+            addLine(style,"street-line","streets",Color.rgb(100,89,69),1.25f);
+            addLine(style,"ferry-line","ferries",Color.rgb(35,223,245),2.1f);
 
-            status.setText(String.format(Locale.US,
-                    "Peta detail aktif • %.1f MB • vector PMTiles • zoom 0–14",
-                    file.length()/1048576.0));
-            centerBanyuwangi();
+            pmtilesLoaded = true;
         } catch(Exception e) {
-            status.setText("Gagal memuat PMTiles: " + e.getMessage());
+            pmtilesLoaded = false;
+            status.setText("PMTiles gagal dimuat: " + e.getMessage());
         }
+    }
+
+    private void addMarineOverlay(Style style) {
+        if(!marineOverlayEnabled) return;
+        try {
+            TileSet tileSet = new TileSet("2.1.0", SEAMARK_TILES);
+            RasterSource source = new RasterSource("openseamap-seamarks",tileSet,256);
+            style.addSource(source);
+
+            RasterLayer layer = new RasterLayer(
+                    "openseamap-seamarks-layer","openseamap-seamarks");
+            layer.setProperties(
+                    PropertyFactory.rasterOpacity(0.97f),
+                    PropertyFactory.rasterFadeDuration(0f)
+            );
+            style.addLayer(layer);
+        } catch(Exception e) {
+            safety.setText("Marine overlay gagal • " + e.getClass().getSimpleName());
+        }
+    }
+
+    private void updateStatus(File f) {
+        String base = pmtilesLoaded && f.exists()
+                ? String.format(Locale.US,"PMTiles OFFLINE %.1f MB",f.length()/1048576.0)
+                : "Basemap kosong • impor PMTiles";
+        String marine = marineOverlayEnabled
+                ? "OpenSeaMap seamarks ONLINE"
+                : "marine overlay OFF";
+        status.setText(base + " • " + marine);
+        safety.setText(marineOverlayEnabled
+                ? "BUOY • BEACON • LIGHT • SEAMARK • HARBOUR DATA • OPEN DATA"
+                : "OPEN DATA • gunakan bersama peta laut resmi");
+    }
+
+    private void updateMarineButton() {
+        marineButton.setText(marineOverlayEnabled ? "MARINE ON" : "MARINE OFF");
+        marineButton.setAlpha(marineOverlayEnabled ? 1f : 0.6f);
     }
 
     private void addFill(Style style,String id,String sourceLayer,int color,float opacity) {
@@ -183,7 +250,9 @@ public class VectorOfflineMapActivity extends Activity {
 
     @Override protected void onActivityResult(int requestCode,int resultCode,Intent data) {
         super.onActivityResult(requestCode,resultCode,data);
-        if(requestCode != REQ_PMTILES || resultCode != RESULT_OK || data == null || data.getData() == null) return;
+        if(requestCode != REQ_PMTILES || resultCode != RESULT_OK
+                || data == null || data.getData() == null) return;
+
         Uri uri = data.getData();
         importButton.setEnabled(false);
         status.setText("Menyalin PMTiles ke penyimpanan aplikasi…");
@@ -204,7 +273,9 @@ public class VectorOfflineMapActivity extends Activity {
                 final long size=total;
                 runOnUiThread(() -> {
                     importButton.setEnabled(true);
-                    status.setText(String.format(Locale.US,"Import selesai %.1f MB • memuat peta…",size/1048576.0));
+                    status.setText(String.format(Locale.US,
+                            "Import selesai %.1f MB • memuat marine chart…",
+                            size/1048576.0));
                     loadBaseStyle();
                 });
             } catch(Exception e) {
@@ -225,7 +296,7 @@ public class VectorOfflineMapActivity extends Activity {
         if(map == null) return;
         map.setCameraPosition(new CameraPosition.Builder()
                 .target(new LatLng(-8.2192,114.3691))
-                .zoom(9.2)
+                .zoom(11.0)
                 .bearing(0)
                 .tilt(0)
                 .build());
@@ -249,6 +320,12 @@ public class VectorOfflineMapActivity extends Activity {
     }
 
     private LinearLayout.LayoutParams half() {
+        LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,-2,1f);
+        p.setMargins(dp(2),0,dp(2),0);
+        return p;
+    }
+
+    private LinearLayout.LayoutParams third() {
         LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,-2,1f);
         p.setMargins(dp(2),0,dp(2),0);
         return p;
