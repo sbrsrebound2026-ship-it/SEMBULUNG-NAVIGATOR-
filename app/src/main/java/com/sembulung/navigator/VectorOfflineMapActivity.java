@@ -355,6 +355,8 @@ public class VectorOfflineMapActivity extends Activity implements LocationListen
         overlay.activeIndex=active;
         overlay.aisTargets=ais;
         overlay.soundings=sonar;
+        if(trackRecording)recordTrackPoint();
+        evaluateShallowAlarm(n,sonar);
         overlay.invalidate();
 
         LatLng pos=currentLatLng();
@@ -364,15 +366,122 @@ public class VectorOfflineMapActivity extends Activity implements LocationListen
 
         String source=gpsLocation!=null?"GPS":(n.positionFresh(LIVE_AGE_MS)?"NMEA":"NO FIX");
         navStatus.setText(String.format(Locale.US,
-                "%s • SOG %.1f kn • COG %s • DEPTH %s • AIS %d • WP %d • SONAR %d",
+                "%s • SOG %.1f kn • COG %s • DEPTH %s • AIS %d • WP %d • TRACK %d • SONAR %d",
                 source,sog,
                 Double.isFinite(cog)?String.format(Locale.US,"%.0f°",cog):"--",
                 depth!=null?String.format(Locale.US,"%.1fm",depth):"--",
-                ais.size(),wps.size(),sonar.size()));
+                ais.size(),wps.size(),trackPoints.size(),sonar.size()));
 
         if(followBoat&&pos!=null&&map!=null) {
             CameraPosition cp=map.getCameraPosition();
             map.setCameraPosition(new CameraPosition.Builder(cp).target(pos).build());
+        }
+    }
+
+    private void addRoutePoint(LatLng point) {
+        List<WaypointStore.Waypoint> all=WaypointStore.load(this);
+        all.add(new WaypointStore.Waypoint("RUTE "+(all.size()+1),point.getLatitude(),point.getLongitude()));
+        WaypointStore.save(this,all);
+        if(WaypointStore.activeIndex(this)<0)WaypointStore.setActiveIndex(this,0);
+        refreshLiveData();
+    }
+
+    private File trackFile() {
+        File dir=new File(getFilesDir(),"track");
+        if(!dir.exists())dir.mkdirs();
+        return new File(dir,"track.csv");
+    }
+
+    private void loadTrack() {
+        trackPoints.clear();
+        File f=trackFile();
+        if(!f.exists())return;
+        try(BufferedReader r=new BufferedReader(new FileReader(f))) {
+            String line;
+            while((line=r.readLine())!=null) {
+                String[] p=line.split(",");
+                if(p.length<2)continue;
+                try {
+                    double lat=Double.parseDouble(p[0]);
+                    double lon=Double.parseDouble(p[1]);
+                    trackPoints.add(new LatLng(lat,lon));
+                } catch(Exception ignored) {}
+            }
+            if(trackPoints.size()>5000) {
+                List<LatLng> tail=new ArrayList<>(trackPoints.subList(trackPoints.size()-5000,trackPoints.size()));
+                trackPoints.clear();trackPoints.addAll(tail);
+            }
+            if(!trackPoints.isEmpty())lastTrackPoint=trackPoints.get(trackPoints.size()-1);
+        } catch(Exception ignored) {}
+    }
+
+    private void recordTrackPoint() {
+        LatLng p=currentLatLng();
+        if(p==null)return;
+        long now=System.currentTimeMillis();
+        if(lastTrackPoint!=null) {
+            float[] d=new float[1];
+            Location.distanceBetween(lastTrackPoint.getLatitude(),lastTrackPoint.getLongitude(),
+                    p.getLatitude(),p.getLongitude(),d);
+            if(d[0]<5.0f && now-lastTrackTime<5000L)return;
+        }
+        trackPoints.add(p);
+        if(trackPoints.size()>5000)trackPoints.remove(0);
+        lastTrackPoint=p;lastTrackTime=now;
+        try(BufferedWriter w=new BufferedWriter(new FileWriter(trackFile(),true))) {
+            w.write(String.format(Locale.US,"%.7f,%.7f,%d\n",p.getLatitude(),p.getLongitude(),now));
+        } catch(Exception ignored) {}
+    }
+
+    private void clearTrack() {
+        trackPoints.clear();
+        lastTrackPoint=null;
+        lastTrackTime=0L;
+        File f=trackFile();
+        if(f.exists())f.delete();
+        if(overlay!=null)overlay.invalidate();
+    }
+
+    private void evaluateShallowAlarm(NmeaDataStore.Snapshot n,List<DepthSample> sonar) {
+        double threshold=AppSettings.shallowMeters(this);
+        boolean danger=false;
+        String message=null;
+
+        if(AppSettings.shallowWarning(this)&&n.depthFresh(15000L)&&n.depth!=null&&n.depth<threshold) {
+            danger=true;
+            message=String.format(Locale.US,"SHALLOW WATER %.1fm < %.1fm",n.depth,threshold);
+        }
+
+        LatLng pos=currentLatLng();
+        double cog=currentCog();
+        long now=System.currentTimeMillis();
+        if(AppSettings.shallowAheadWarning(this)&&pos!=null&&Double.isFinite(cog)&&sonar!=null&&!sonar.isEmpty()) {
+            if(now-lastHazardBuildAt>5000L) {
+                SonarChartEngine.Chart chart=SonarChartEngine.build(
+                        sonar,20.0,AppSettings.contourIntervalMeters(this));
+                cachedHazard=SonarHazardEngine.assessAhead(
+                        chart,pos.getLatitude(),pos.getLongitude(),
+                        cog,currentSog(),threshold,AppSettings.lookAheadMinutes(this),75.0);
+                lastHazardBuildAt=now;
+            }
+            if(cachedHazard!=null&&(cachedHazard.risk==SonarHazardEngine.Risk.DANGER||
+                    cachedHazard.risk==SonarHazardEngine.Risk.WARNING)) {
+                danger=true;
+                message=String.format(Locale.US,"SHALLOW AHEAD %.1fm • %.0fm",
+                        cachedHazard.minimumDepthMeters,cachedHazard.distanceAheadMeters);
+            }
+        }
+
+        if(danger) {
+            safety.setText(message);
+            safety.setTextColor(Color.rgb(255,90,70));
+            if(now-lastAlarmAt>10000L&&alarmTone!=null) {
+                alarmTone.startTone(ToneGenerator.TONE_PROP_BEEP,550);
+                lastAlarmAt=now;
+            }
+        } else if(!routeTapMode) {
+            safety.setText("LIVE OVERLAY: VESSEL • ROUTE • AIS CPA/TCPA • TRACK • SOUNDINGS");
+            safety.setTextColor(0xffffd764);
         }
     }
 
@@ -550,6 +659,8 @@ public class VectorOfflineMapActivity extends Activity implements LocationListen
             super.onDraw(c);
             if(map==null)return;
 
+            drawRangeRings(c);
+            drawTrack(c);
             drawSoundings(c);
             drawRouteAndWaypoints(c);
             drawAis(c);
@@ -559,6 +670,43 @@ public class VectorOfflineMapActivity extends Activity implements LocationListen
         private PointF screen(double lat,double lon) {
             try{return map.getProjection().toScreenLocation(new LatLng(lat,lon));}
             catch(Exception e){return null;}
+        }
+
+        private void drawRangeRings(Canvas c) {
+            LatLng v=currentLatLng();
+            if(v==null)return;
+            PointF center=screen(v.getLatitude(),v.getLongitude());
+            if(center==null)return;
+            double[] rings={0.5,1.0,2.0};
+            p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(dp(1));p.setColor(0x99B8F5FF);p.setAlpha(150);
+            text.setColor(Color.rgb(190,245,255));text.setAlpha(220);
+            for(double nm:rings) {
+                PointF north=screen(v.getLatitude()+nm/60.0,v.getLongitude());
+                if(north==null)continue;
+                float radius=Math.abs(center.y-north.y);
+                if(radius<dp(8)||radius>Math.max(getWidth(),getHeight())*1.5f)continue;
+                c.drawCircle(center.x,center.y,radius,p);
+                c.drawText(String.format(Locale.US,"%.1f NM",nm),center.x+radius+dp(3),center.y,text);
+            }
+            c.drawLine(center.x-dp(18),center.y,center.x+dp(18),center.y,p);
+            c.drawLine(center.x,center.y-dp(18),center.x,center.y+dp(18),p);
+        }
+
+        private void drawTrack(Canvas c) {
+            if(trackPoints.size()<2)return;
+            Path path=new Path();
+            boolean started=false;
+            int start=Math.max(0,trackPoints.size()-2000);
+            for(int i=start;i<trackPoints.size();i++) {
+                LatLng ll=trackPoints.get(i);
+                PointF pt=screen(ll.getLatitude(),ll.getLongitude());
+                if(pt==null)continue;
+                if(!started){path.moveTo(pt.x,pt.y);started=true;}
+                else path.lineTo(pt.x,pt.y);
+            }
+            p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(dp(3));
+            p.setColor(Color.rgb(255,79,210));p.setAlpha(215);
+            c.drawPath(path,p);
         }
 
         private void drawSoundings(Canvas c) {
@@ -582,6 +730,20 @@ public class VectorOfflineMapActivity extends Activity implements LocationListen
         private void drawRouteAndWaypoints(Canvas c) {
             if(waypoints==null)return;
             LatLng vessel=currentLatLng();
+
+            if(waypoints.size()>1) {
+                Path route=new Path();
+                boolean started=false;
+                for(WaypointStore.Waypoint w:waypoints) {
+                    PointF pt=screen(w.lat,w.lon);
+                    if(pt==null)continue;
+                    if(!started){route.moveTo(pt.x,pt.y);started=true;}
+                    else route.lineTo(pt.x,pt.y);
+                }
+                p.setColor(Color.rgb(80,245,255));p.setStyle(Paint.Style.STROKE);
+                p.setStrokeWidth(dp(2));p.setAlpha(170);
+                c.drawPath(route,p);
+            }
 
             if(activeIndex>=0&&activeIndex<waypoints.size()&&vessel!=null) {
                 WaypointStore.Waypoint w=waypoints.get(activeIndex);
@@ -611,25 +773,46 @@ public class VectorOfflineMapActivity extends Activity implements LocationListen
 
         private void drawAis(Canvas c) {
             if(aisTargets==null)return;
+            LatLng own=currentLatLng();
+            double ownSog=currentSog();
+            double ownCog=currentCog();
+
             for(AisTarget t:aisTargets) {
                 if(t==null||!t.hasValidPosition())continue;
                 PointF pt=screen(t.latitude,t.longitude);
                 if(pt==null||offscreen(pt))continue;
+
+                AisCollisionEngine.Assessment a=own==null?null:
+                        AisCollisionEngine.assess(
+                                own.getLatitude(),own.getLongitude(),ownSog,ownCog,t);
+                int color=riskColor(a==null?AisCollisionEngine.Risk.UNKNOWN:a.risk);
                 double course=t.hasMotionVector()?t.courseDeg:(t.headingDeg!=null?t.headingDeg:0.0);
-                drawTriangle(c,pt.x,pt.y,course,dp(9),Color.rgb(255,151,55));
+                drawTriangle(c,pt.x,pt.y,course,dp(9),color);
 
                 if(t.hasMotionVector()&&t.speedKnots>0.3) {
                     double r=Math.toRadians(t.courseDeg);
-                    float len=dp((int)Math.min(28,8+t.speedKnots));
-                    p.setColor(Color.rgb(255,180,80));p.setStrokeWidth(dp(2));p.setAlpha(220);
+                    float len=dp((int)Math.min(32,8+t.speedKnots));
+                    p.setColor(color);p.setStrokeWidth(dp(2));p.setAlpha(220);
                     c.drawLine(pt.x,pt.y,pt.x+(float)Math.sin(r)*len,pt.y-(float)Math.cos(r)*len,p);
                 }
 
-                if(map.getCameraPosition().zoom>=11.0) {
-                    text.setColor(Color.rgb(255,210,135));text.setAlpha(255);
-                    c.drawText(Long.toString(t.mmsi),pt.x+dp(9),pt.y+dp(4),text);
+                if(map.getCameraPosition().zoom>=10.5) {
+                    text.setColor(color);text.setAlpha(255);
+                    String label=Long.toString(t.mmsi);
+                    if(a!=null&&Double.isFinite(a.cpaNm)&&Double.isFinite(a.tcpaMinutes)) {
+                        label+=String.format(Locale.US," CPA %.2fNM %.0fm",a.cpaNm,a.tcpaMinutes);
+                    }
+                    c.drawText(label,pt.x+dp(9),pt.y+dp(4),text);
                 }
             }
+        }
+
+        private int riskColor(AisCollisionEngine.Risk risk) {
+            if(risk==AisCollisionEngine.Risk.DANGER)return Color.rgb(255,65,65);
+            if(risk==AisCollisionEngine.Risk.WARNING)return Color.rgb(255,145,45);
+            if(risk==AisCollisionEngine.Risk.MONITOR)return Color.rgb(255,220,70);
+            if(risk==AisCollisionEngine.Risk.SAFE)return Color.rgb(100,230,130);
+            return Color.rgb(210,210,210);
         }
 
         private void drawVessel(Canvas c) {
@@ -695,6 +878,7 @@ public class VectorOfflineMapActivity extends Activity implements LocationListen
     @Override protected void onDestroy(){
         handler.removeCallbacks(liveTick);
         try{if(locationManager!=null)locationManager.removeUpdates(this);}catch(Exception ignored){}
+        try{if(alarmTone!=null)alarmTone.release();}catch(Exception ignored){}
         if(mapView!=null)mapView.onDestroy();
         super.onDestroy();
     }
