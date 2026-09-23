@@ -69,6 +69,18 @@ public class SettingsActivity extends Activity {
                 "GOOD_ONLY".equals(AppSettings.sonarQualityMode(this))?"Hanya GOOD":"GOOD + QUESTIONABLE",
                 new String[]{"Hanya GOOD","GOOD + QUESTIONABLE"},
                 v->AppSettings.sonarQualityMode(this,"Hanya GOOD".equals(v)?"GOOD_ONLY":"GOOD_AND_QUESTIONABLE"));
+        addChoice("Kerapatan Sonar Chart",AppSettings.sonarDensity(this),
+                new String[]{"LOW","NORMAL","HIGH","ULTRA"},
+                v->AppSettings.sonarDensity(this,v));
+        addSwitch("Relief / hillshade dasar laut",
+                "Tambahkan relief halus dari gradien bathymetry agar bentuk dasar laut lebih terbaca",
+                AppSettings.sonarRelief(this),v->AppSettings.sonarRelief(this,v));
+        addSwitch("Survey coverage mask",
+                "Batasi rendering pada area yang memiliki confidence sounding memadai",
+                AppSettings.sonarCoverageMask(this),v->AppSettings.sonarCoverageMask(this,v));
+        addSwitch("Label kontur",
+                "Tampilkan label angka pada major contour tanpa saling bertumpuk",
+                AppSettings.sonarContourLabels(this),v->AppSettings.sonarContourLabels(this,v));
 
         root.addView(section("AIS"));
         addSwitch("Aktifkan AIS","Tampilkan target AIS tersimpan/fresh pada peta",AppSettings.aisEnabled(this),
