@@ -68,6 +68,8 @@ public class VectorOfflineMapActivity extends Activity implements LocationListen
     private static final String FILE_NAME = "sembulung_jatim_bali.pmtiles";
     private static final long LIVE_AGE_MS = 15000L;
 
+    private static final String ONLINE_BASE_TILES =
+            "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
     private static final String SEAMARK_TILES =
             "https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png";
     private static final String GEBCO_WMS =
@@ -83,6 +85,7 @@ public class VectorOfflineMapActivity extends Activity implements LocationListen
     private TextView status;
     private TextView navStatus;
     private TextView safety;
+    private TextView instrumentPanel;
     private Button importButton;
     private Button marineButton;
     private Button depthButton;
@@ -137,7 +140,7 @@ public class VectorOfflineMapActivity extends Activity implements LocationListen
         top.setPadding(dp(8),dp(7),dp(8),dp(7));
         top.setBackgroundColor(0xE904182B);
 
-        TextView title=label("SEMBULUNG UNIFIED MARINE MAP • V26",15,true);
+        TextView title=label("SEMBULUNG NAVIGATOR • V27 FINAL",15,true);
         top.addView(title);
 
         status=label("Menyiapkan MapLibre…",11,false);
@@ -267,7 +270,16 @@ public class VectorOfflineMapActivity extends Activity implements LocationListen
         FrameLayout.LayoutParams topLp=new FrameLayout.LayoutParams(-1,-2,Gravity.TOP);
         root.addView(top,topLp);
 
-        TextView attribution=label("© OSM • Geofabrik • OpenSeaMap • GEBCO • MapLibre",9,false);
+        instrumentPanel=label("SOG --.- kn   COG ---°\nDTG --.-- NM   BRG ---°\nDEPTH --.- m   CPA --.-- NM",12,true);
+        instrumentPanel.setGravity(Gravity.LEFT);
+        instrumentPanel.setPadding(dp(10),dp(7),dp(10),dp(7));
+        instrumentPanel.setBackgroundColor(0xD604182B);
+        instrumentPanel.setTextColor(Color.WHITE);
+        FrameLayout.LayoutParams instLp=new FrameLayout.LayoutParams(-2,-2,Gravity.BOTTOM|Gravity.START);
+        instLp.setMargins(dp(8),0,0,dp(34));
+        root.addView(instrumentPanel,instLp);
+
+        TextView attribution=label("© OpenStreetMap contributors • Geofabrik • OpenSeaMap • GEBCO • MapLibre",9,false);
         attribution.setPadding(dp(6),dp(3),dp(6),dp(3));
         attribution.setBackgroundColor(0xC003172A);
         FrameLayout.LayoutParams attrLp=new FrameLayout.LayoutParams(-2,-2,Gravity.BOTTOM|Gravity.END);
@@ -297,7 +309,7 @@ public class VectorOfflineMapActivity extends Activity implements LocationListen
         pmtilesLoaded=false;
         String styleJson="{"
                 +"\"version\":8,"
-                +"\"name\":\"SEMBULUNG UNIFIED V26\","
+                +"\"name\":\"SEMBULUNG NAVIGATOR V27 FINAL\","
                 +"\"sources\":{},"
                 +"\"layers\":[{"
                 +"\"id\":\"background\","
@@ -308,6 +320,7 @@ public class VectorOfflineMapActivity extends Activity implements LocationListen
         map.setStyle(new Style.Builder().fromJson(styleJson),style->{
             File f=localPmtiles();
             if(f.exists()&&f.length()>0)addPmtiles(style,f);
+            else addOnlineBase(style);
             addDepthOverlay(style);
             addMarineOverlay(style);
             updateBaseStatus(f);
@@ -315,6 +328,22 @@ public class VectorOfflineMapActivity extends Activity implements LocationListen
             else centerBanyuwangi();
             overlay.invalidate();
         });
+    }
+
+    private void addOnlineBase(Style style) {
+        try {
+            TileSet tileSet=new TileSet("2.1.0",ONLINE_BASE_TILES);
+            RasterSource source=new RasterSource("osm-online-base",tileSet,256);
+            style.addSource(source);
+            RasterLayer layer=new RasterLayer("osm-online-base-layer","osm-online-base");
+            layer.setProperties(
+                    PropertyFactory.rasterOpacity(1.0f),
+                    PropertyFactory.rasterFadeDuration(0f)
+            );
+            style.addLayer(layer);
+        } catch(Exception e) {
+            status.setText("Basemap online gagal • "+e.getClass().getSimpleName());
+        }
     }
 
     private void addPmtiles(Style style,File file) {
@@ -423,6 +452,11 @@ public class VectorOfflineMapActivity extends Activity implements LocationListen
                 safety.setText(String.format(Locale.US,"OFF ROUTE • XTE %.2fNM > %.2fNM",
                         Math.abs(guidance.xteNm),AppSettings.offRouteNm(this)));
                 safety.setTextColor(Color.rgb(255,145,45));
+                long now=System.currentTimeMillis();
+                if(now-lastAlarmAt>10000L&&alarmTone!=null) {
+                    alarmTone.startTone(ToneGenerator.TONE_PROP_BEEP2,600);
+                    lastAlarmAt=now;
+                }
             }
         }
 
@@ -432,6 +466,31 @@ public class VectorOfflineMapActivity extends Activity implements LocationListen
                 Double.isFinite(cog)?String.format(Locale.US,"%.0f°",cog):"--",
                 depth!=null?String.format(Locale.US,"%.1fm",depth):"--",
                 routeText,ais.size(),wps.size(),trackPoints.size(),sonar.size()));
+
+        double bestCpa=Double.NaN;
+        double bestTcpa=Double.NaN;
+        if(pos!=null&&ais!=null) {
+            for(AisTarget t:ais) {
+                AisCollisionEngine.Assessment a=AisCollisionEngine.assess(
+                        pos.getLatitude(),pos.getLongitude(),sog,cog,t);
+                if(Double.isFinite(a.cpaNm)&&a.tcpaMinutes>=0&&
+                        (!Double.isFinite(bestCpa)||a.cpaNm<bestCpa)) {
+                    bestCpa=a.cpaNm;
+                    bestTcpa=a.tcpaMinutes;
+                }
+            }
+        }
+        if(instrumentPanel!=null) {
+            String dtg=guidance!=null?String.format(Locale.US,"%.2f",guidance.distanceNm):"--.--";
+            String brg=guidance!=null?String.format(Locale.US,"%.0f°",guidance.bearingDeg):"---°";
+            String dep=depth!=null?String.format(Locale.US,"%.1f",depth):"--.-";
+            String cpa=Double.isFinite(bestCpa)?String.format(Locale.US,"%.2f",bestCpa):"--.--";
+            String tcpa=Double.isFinite(bestTcpa)?String.format(Locale.US,"%.0f",bestTcpa):"--";
+            instrumentPanel.setText(String.format(Locale.US,
+                    "SOG %.1f kn   COG %s\nDTG %s NM   BRG %s\nDEPTH %s m   CPA %s NM / %s min",
+                    sog,Double.isFinite(cog)?String.format(Locale.US,"%.0f°",cog):"---°",
+                    dtg,brg,dep,cpa,tcpa));
+        }
 
         if(followBoat&&pos!=null&&map!=null) {
             CameraPosition cp=map.getCameraPosition();
@@ -708,7 +767,7 @@ public class VectorOfflineMapActivity extends Activity implements LocationListen
     private void updateBaseStatus(File f) {
         String base=pmtilesLoaded&&f.exists()
                 ?String.format(Locale.US,"PMTiles OFFLINE %.1f MB",f.length()/1048576.0)
-                :"Basemap kosong • impor PMTiles";
+                :"OSM ONLINE • impor PMTiles untuk offline";
         status.setText(base+" • "+(marineOverlayEnabled?"SEAMARK ON":"SEAMARK OFF")
                 +" • "+(depthOverlayEnabled?"GEBCO ON":"GEBCO OFF"));
         safety.setText("LIVE OVERLAY: VESSEL • ROUTE • AIS • SOUNDINGS • OPEN DATA");
