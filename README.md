@@ -17,10 +17,10 @@ Current build: **V27 FINAL / 3.0.0**
 
 The primary MapLibre screen combines:
 
-- offline PMTiles vector basemap
+- online OpenStreetMap basemap fallback so the map can open before PMTiles is installed\n- offline PMTiles vector basemap
 - OpenSeaMap seamarks
 - optional GEBCO depth relief
-- own-vessel GPS with NMEA fallback
+- chartplotter instrument panel for SOG, COG, DTG, BRG, depth and nearest AIS CPA/TCPA\n- own-vessel GPS with NMEA fallback
 - SOG, COG and heading
 - tap-to-create route planning
 - waypoint route line, DTG, bearing, XTE and ETA
@@ -45,7 +45,7 @@ The primary MapLibre screen combines:
 
 ## Offline map data
 
-Primary regional test package:
+Online mode can display an OpenStreetMap basemap without an MBTiles/PMTiles file. For offline operation, use a permitted offline map package.\n\nPrimary regional test package:
 **Banyuwangi – Selat Bali – Bali PMTiles**
 
 Target bounds: `113.0,-9.2,116.0,-7.0`
