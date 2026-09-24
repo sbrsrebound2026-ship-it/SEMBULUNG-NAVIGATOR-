@@ -36,3 +36,21 @@ jobs:
           name: SEMBULUNG-NAVIGATOR-3.0-FINAL-UNSIGNED
           path: export/
           retention-days: 1
+
+      - name: Package Android signing tools
+        run: |
+          BT=$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)
+          test -x "$BT/zipalign"
+          test -x "$BT/apksigner"
+          mkdir -p sign-tools/lib
+          cp "$BT/zipalign" sign-tools/
+          cp "$BT/aapt" sign-tools/ || true
+          cp "$BT/apksigner" sign-tools/
+          cp "$BT/lib/apksigner.jar" sign-tools/lib/
+          if [ -d "$BT/lib64" ]; then cp -R "$BT/lib64" sign-tools/; fi
+          chmod +x sign-tools/zipalign sign-tools/apksigner
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ANDROID-SIGN-TOOLS
+          path: sign-tools/
+          retention-days: 1
