@@ -45,6 +45,7 @@ public final class BathymetryMbtilesExporter {
             putMetadata(db,"name","SEMBULUNG NAVIGATOR Bathymetry");
             putMetadata(db,"format","png");
             putMetadata(db,"type","overlay");
+            putMetadata(db,"scheme","tms");
             putMetadata(db,"version","1");
             putMetadata(db,"minzoom",Integer.toString(zoom));
             putMetadata(db,"maxzoom",Integer.toString(zoom));
