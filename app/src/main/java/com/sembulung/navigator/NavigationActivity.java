@@ -58,74 +58,50 @@ public class NavigationActivity extends Activity implements LocationListener {
     }
 
     private ScrollView buildUi() {
-        ScrollView scroll = new ScrollView(this);
-        scroll.setBackgroundColor(Color.rgb(3,27,61));
-
-        LinearLayout root = new LinearLayout(this);
+        ScrollView scroll=new ScrollView(this);
+        scroll.setBackgroundColor(Color.rgb(2,18,33));
+        LinearLayout root=new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setGravity(Gravity.CENTER_HORIZONTAL);
-        root.setPadding(dp(22),dp(26),dp(22),dp(28));
-        scroll.addView(root, new ScrollView.LayoutParams(-1,-2));
+        root.setPadding(dp(12),dp(12),dp(12),dp(20));
+        scroll.addView(root,new ScrollView.LayoutParams(-1,-2));
 
-        TextView title = text("NAVIGASI GPS + WAYPOINT", 24, true);
+        TextView title=text("ROUTE & WAYPOINTS",20,true);
+        title.setGravity(Gravity.LEFT);
         root.addView(title);
+        TextView sub=text("Rute, titik tujuan, track dan navigasi",10,false);
+        sub.setGravity(Gravity.LEFT); sub.setTextColor(0xff9fb4c5);
+        root.addView(sub,top(2));
 
-        TextView sub = text("Posisi, rute tujuan, bearing dan ETA", 14, false);
-        sub.setPadding(0,dp(6),0,dp(18));
-        root.addView(sub);
+        LinearLayout tabs=new LinearLayout(this);
+        Button routeTab=button("ROUTE"); routeTab.setEnabled(false); tabs.addView(routeTab,half());
+        Button wpTab=button("WAYPOINT"); wpTab.setOnClickListener(v->waypointList.requestFocus()); tabs.addView(wpTab,half());
+        Button trackTab=button("TRACK"); trackTab.setOnClickListener(v->Toast.makeText(this,"Track mengikuti rekaman posisi GPS.",Toast.LENGTH_SHORT).show()); tabs.addView(trackTab,half());
+        root.addView(tabs,top(12));
 
-        position = metric("LAT / LON\nMenunggu GPS...");
-        speed = metric("KECEPATAN\n0.0 kn");
-        course = metric("ARAH\n---°");
-        accuracy = metric("AKURASI\n--- m");
-        provider = metric("STATUS\nMenghubungkan GPS...");
-        routeStatus = metric("TUJUAN AKTIF\nBelum dipilih");
+        LinearLayout metrics=new LinearLayout(this);
+        metrics.setOrientation(LinearLayout.HORIZONTAL);
+        position=metric("POSITION\nMenunggu GPS");
+        speed=metric("SOG\n0.0 kn");
+        course=metric("COG\n---°");
+        metrics.addView(position,metricLp()); metrics.addView(speed,metricLp()); metrics.addView(course,metricLp());
+        root.addView(metrics,top(8));
 
-        root.addView(position, lp());
-        root.addView(speed, lp());
-        root.addView(course, lp());
-        root.addView(accuracy, lp());
-        root.addView(provider, lp());
-        root.addView(routeStatus, lp());
+        LinearLayout metrics2=new LinearLayout(this);
+        accuracy=metric("AKURASI\n--- m"); provider=metric("GPS\nMencari"); routeStatus=metric("TUJUAN\nBelum dipilih");
+        metrics2.addView(accuracy,metricLp()); metrics2.addView(provider,metricLp()); metrics2.addView(routeStatus,metricLp());
+        root.addView(metrics2,lp());
 
-        Button refresh = button("MULAI / SEGARKAN GPS");
-        refresh.setOnClickListener(v -> startGps());
-        root.addView(refresh, top(18));
+        Button refresh=button("REFRESH GPS"); refresh.setOnClickListener(v->startGps()); root.addView(refresh,top(10));
+        Button saveCurrent=button("SIMPAN POSISI"); saveCurrent.setOnClickListener(v->saveCurrentPosition()); root.addView(saveCurrent,lp());
+        Button addManual=button("TAMBAH WAYPOINT"); addManual.setOnClickListener(v->showManualWaypointDialog()); root.addView(addManual,lp());
+        Button openMap=button("BUKA CHART • MULAI NAVIGASI"); openMap.setOnClickListener(v->startActivity(new Intent(this,MarineMapActivity.class))); root.addView(openMap,lp());
+        Button clearTarget=button("HAPUS TUJUAN AKTIF"); clearTarget.setOnClickListener(v->{activeIndex=-1;persistActive();renderWaypoints();updateRouteStatus();}); root.addView(clearTarget,lp());
 
-        Button saveCurrent = button("SIMPAN POSISI SAAT INI");
-        saveCurrent.setOnClickListener(v -> saveCurrentPosition());
-        root.addView(saveCurrent, lp());
-
-        Button addManual = button("TAMBAH WAYPOINT MANUAL");
-        addManual.setOnClickListener(v -> showManualWaypointDialog());
-        root.addView(addManual, lp());
-
-        Button openMap = button("BUKA MARINE MAP / MULAI NAVIGASI");
-        openMap.setOnClickListener(v -> startActivity(new Intent(this,MarineMapActivity.class)));
-        root.addView(openMap, lp());
-
-        Button clearTarget = button("HAPUS TUJUAN AKTIF");
-        clearTarget.setOnClickListener(v -> {
-            activeIndex = -1;
-            persistActive();
-            renderWaypoints();
-            updateRouteStatus();
-        });
-        root.addView(clearTarget, lp());
-
-        TextView listTitle = text("WAYPOINT TERSIMPAN", 16, true);
-        listTitle.setPadding(0,dp(24),0,dp(4));
-        root.addView(listTitle);
-
-        waypointList = new LinearLayout(this);
-        waypointList.setOrientation(LinearLayout.VERTICAL);
-        root.addView(waypointList, new LinearLayout.LayoutParams(-1,-2));
+        TextView listTitle=text("WAYPOINT TERSIMPAN",12,true); listTitle.setGravity(Gravity.LEFT); root.addView(listTitle,top(16));
+        waypointList=new LinearLayout(this); waypointList.setOrientation(LinearLayout.VERTICAL); root.addView(waypointList,new LinearLayout.LayoutParams(-1,-2));
         renderWaypoints();
 
-        Button back = button("KEMBALI");
-        back.setOnClickListener(v -> finish());
-        root.addView(back, top(18));
-
+        Button back=button("KEMBALI"); back.setOnClickListener(v->finish()); root.addView(back,top(14));
         return scroll;
     }
 
@@ -390,12 +366,8 @@ public class NavigationActivity extends Activity implements LocationListener {
         if(locationManager!=null && provider!=null) startGps();
     }
 
-    private TextView metric(String s){
-        TextView t=text(s,18,true);
-        t.setPadding(dp(12),dp(15),dp(12),dp(15));
-        t.setBackgroundColor(Color.rgb(7,57,94));
-        return t;
-    }
+    private TextView metric(String s){TextView t=text(s,11,true);t.setGravity(Gravity.LEFT|Gravity.CENTER_VERTICAL);t.setPadding(dp(9),dp(8),dp(9),dp(8));t.setBackgroundColor(Color.rgb(7,43,70));return t;}
+    private LinearLayout.LayoutParams metricLp(){LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,dp(58),1f);p.setMargins(dp(3),0,dp(3),0);return p;}
 
     private TextView text(String s,int sp,boolean bold){
         TextView t=new TextView(this);
@@ -407,12 +379,7 @@ public class NavigationActivity extends Activity implements LocationListener {
         return t;
     }
 
-    private Button button(String s){
-        Button b=new Button(this);
-        b.setText(s);
-        b.setAllCaps(false);
-        return b;
-    }
+    private Button button(String s){Button b=new Button(this);b.setText(s);b.setAllCaps(false);b.setTextSize(11);b.setTextColor(Color.WHITE);b.setMinHeight(0);b.setMinWidth(0);b.setPadding(dp(8),0,dp(8),0);return b;}
 
     private EditText field(String hint){
         EditText e=new EditText(this);
