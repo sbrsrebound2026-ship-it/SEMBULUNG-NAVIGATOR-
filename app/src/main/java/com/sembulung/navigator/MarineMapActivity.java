@@ -54,6 +54,7 @@ public class MarineMapActivity extends Activity implements LocationListener {
     private TextView aisChip;
     private Button sourceButton;
     private Button sonarButton;
+    private Button bathyButton;
     private TextView routeGuidance;
     private TextView safetyGuidance;
     private Button skipWaypointButton;
@@ -162,6 +163,21 @@ public class MarineMapActivity extends Activity implements LocationListener {
         Button layers=floating("LAYER",9);
         layers.setOnClickListener(v->layerMenu());
         right.addView(layers,square());
+
+        bathyButton=floating("BATHY",9);
+        bathyButton.setOnClickListener(v->{
+            boolean on=!map.globalBathymetry();
+            map.globalBathymetry(on);
+            bathyButton.setText(on?"BATHY":"B OFF");
+            Toast.makeText(this,on?"Bathymetry GEBCO/OpenSeaMap aktif":"Bathymetry dimatikan",Toast.LENGTH_SHORT).show();
+        });
+        bathyButton.setOnLongClickListener(v->{
+            int count=map.visibleBathymetryTileCount();
+            map.downloadVisibleBathymetry();
+            Toast.makeText(this,"Mengunduh "+count+" tile bathymetry untuk area tampilan…",Toast.LENGTH_LONG).show();
+            return true;
+        });
+        right.addView(bathyButton,square());
 
         Button search=floating("CARI",9);
         search.setOnClickListener(v->startActivity(new Intent(this,SearchCoordinateActivity.class)));
@@ -295,7 +311,8 @@ public class MarineMapActivity extends Activity implements LocationListener {
 
     private void layerMenu(){
         String[] items={
-                "Sonar Chart: "+(sonarEnabled?"ON":"OFF"),
+                "Bathymetry GEBCO: "+(map!=null&&map.globalBathymetry()?"ON":"OFF"),
+                "Sonar Chart (sounding lokal): "+(sonarEnabled?"ON":"OFF"),
                 "Depth Shading: "+(sonarShading?"ON":"OFF"),
                 "Contour Vector: "+(sonarContours?"ON":"OFF"),
                 "Angka Sounding: "+(sonarSoundings?"ON":"OFF"),
@@ -307,20 +324,23 @@ public class MarineMapActivity extends Activity implements LocationListener {
                 .setTitle("LAYER PETA")
                 .setItems(items,(d,w)->{
                     if(w==0){
+                        boolean on=!(map!=null&&map.globalBathymetry());
+                        if(map!=null)map.globalBathymetry(on);
+                    }else if(w==1){
                         sonarEnabled=!sonarEnabled;
                         AppSettings.sonarEnabled(this,sonarEnabled);
-                    }else if(w==1){
-                        sonarShading=!sonarShading;
                     }else if(w==2){
-                        sonarContours=!sonarContours;
+                        sonarShading=!sonarShading;
                     }else if(w==3){
-                        sonarSoundings=!sonarSoundings;
+                        sonarContours=!sonarContours;
                     }else if(w==4){
-                        map.seamarks(!map.seamarks());
+                        sonarSoundings=!sonarSoundings;
                     }else if(w==5){
+                        map.seamarks(!map.seamarks());
+                    }else if(w==6){
                         aisEnabled=!aisEnabled;
                         AppSettings.aisEnabled(this,aisEnabled);
-                    }else if(w==6){
+                    }else if(w==7){
                         startActivity(new Intent(this,SettingsActivity.class));
                     }
                     applySonarLayers();
@@ -437,6 +457,7 @@ public class MarineMapActivity extends Activity implements LocationListener {
                     AppSettings.sonarContourLabels(this),
                     renderInterval);
         }
+        if(bathyButton!=null)bathyButton.setText(map!=null&&map.globalBathymetry()?"BATHY":"B OFF");
         if(sonarButton!=null){
             sonarButton.setText(sonarEnabled?"SC ON":"SC OFF");
             sonarButton.setAlpha(sonarEnabled?1f:.55f);

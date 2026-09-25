@@ -20,10 +20,14 @@ import java.util.concurrent.Executors;
 public final class MarineTileLoader {
     public static final String LAYER_OSM = "osm";
     public static final String LAYER_SEAMARK = "seamark";
+    public static final String LAYER_BATHY = "bathymetry";
 
     private static final long CACHE_MS = 7L * 24L * 60L * 60L * 1000L;
     private static final String OSM_URL = "https://tile.openstreetmap.org/%d/%d/%d.png";
     private static final String SEAMARK_URL = "https://tiles.openseamap.org/seamark/%d/%d/%d.png";
+    // OpenSeaMap Marine Profile: GEBCO-derived depth shading/contours.
+    private static final String BATHY_WMS = "https://geoserver.openseamap.org/geoserver/wms";
+    private static final int TILE_SIZE = 256;
     private static final String USER_AGENT = "SEMBULUNG-NAVIGATOR/1.0-v13 (Android)";
 
     private final File cacheDir;
@@ -39,7 +43,7 @@ public final class MarineTileLoader {
 
     public MarineTileLoader(Context context, Runnable invalidate) {
         this.invalidate = invalidate;
-        cacheDir = new File(context.getCacheDir(), "marine_tiles_v13");
+        cacheDir = new File(context.getFilesDir(), "marine_tiles_v14");
         if (!cacheDir.exists()) cacheDir.mkdirs();
     }
 
@@ -73,8 +77,13 @@ public final class MarineTileLoader {
             File tmp = new File(cacheDir, key + ".tmp");
 
             try {
-                String template = LAYER_SEAMARK.equals(layer) ? SEAMARK_URL : OSM_URL;
-                String urlText = String.format(Locale.US, template, z, x, y);
+                String urlText;
+                if (LAYER_BATHY.equals(layer)) {
+                    urlText = bathyUrl(z, x, y);
+                } else {
+                    String template = LAYER_SEAMARK.equals(layer) ? SEAMARK_URL : OSM_URL;
+                    urlText = String.format(Locale.US, template, z, x, y);
+                }
 
                 HttpURLConnection c = (HttpURLConnection) new URL(urlText).openConnection();
                 c.setConnectTimeout(5000);
@@ -119,6 +128,33 @@ public final class MarineTileLoader {
                 inFlight.remove(key);
             }
         });
+    }
+
+    private String bathyUrl(int z,int x,int y) {
+        int n=1<<z;
+        double west=x/(double)n*360.0-180.0;
+        double east=(x+1)/(double)n*360.0-180.0;
+        double north=Math.toDegrees(Math.atan(Math.sinh(Math.PI-2*Math.PI*y/(double)n)));
+        double south=Math.toDegrees(Math.atan(Math.sinh(Math.PI-2*Math.PI*(y+1)/(double)n)));
+        double minX=west*20037508.34/180.0, maxX=east*20037508.34/180.0;
+        double minY=Math.log(Math.tan(Math.toRadians(south))+1/Math.cos(Math.toRadians(south)))*20037508.34/Math.PI;
+        double maxY=Math.log(Math.tan(Math.toRadians(north))+1/Math.cos(Math.toRadians(north)))*20037508.34/Math.PI;
+        return BATHY_WMS+"?SERVICE=WMS&VERSION=1.1.1&REQUEST=GetMap"
+                +"&LAYERS=gebco%3Adeeps_gwc&STYLES=&SRS=EPSG%3A900913"
+                +"&FORMAT=image%2Fpng&TRANSPARENT=true"
+                +"&BBOX="+String.format(Locale.US,"%.3f,%.3f,%.3f,%.3f",minX,minY,maxX,maxY)
+                +"&WIDTH="+TILE_SIZE+"&HEIGHT="+TILE_SIZE;
+    }
+
+    public void prefetch(String layer,int z,int x,int y) {
+        if(z<1||z>18)return;
+        int n=1<<z;
+        x=((x%n)+n)%n;
+        if(y<0||y>=n)return;
+        String key=layer+"_"+z+"_"+x+"_"+y;
+        File disk=new File(cacheDir,key+".png");
+        if(disk.exists()&&disk.length()>0)return;
+        schedule(layer,z,x,y,key,disk);
     }
 
     public void close() {
