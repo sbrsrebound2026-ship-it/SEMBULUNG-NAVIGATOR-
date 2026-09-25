@@ -89,9 +89,70 @@ public class MarineMapView extends View {
                 y0=(int)Math.floor(U/T),y1=(int)Math.floor((U+getHeight())/T);
         return Math.max(0,x1-x0+1)*Math.max(0,y1-y0+1);
     }
-    public void downloadVisibleBathymetry(){
-        downloadBathymetryArea(0);
+    public int downloadVisibleBathymetry(){
+        return downloadBathymetryArea(0);
     }
+
+    /**
+     * Downloads bathymetry inside a geographic radius around the current map center.
+     * Radius is measured in kilometers, not tile counts.
+     */
+    public int downloadBathymetryRadiusKm(int radiusKm){
+        if(radiusKm<=0)return downloadVisibleBathymetry();
+        return downloadBathymetryRadiusKmInternal(radiusKm,false);
+    }
+
+    private int downloadBathymetryRadiusKmInternal(int radiusKm,boolean countOnly){
+        double lat0=clat;
+        double lon0=clon;
+        double latDelta=radiusKm/111.32;
+        double lonScale=Math.max(0.1,Math.cos(Math.toRadians(lat0)));
+        double lonDelta=radiusKm/(111.32*lonScale);
+        double south=cap(lat0-latDelta), north=cap(lat0+latDelta);
+        double west=norm(lon0-lonDelta), east=norm(lon0+lonDelta);
+        int n=1<<z;
+        int y0=(int)Math.floor(wy(north)/T);
+        int y1=(int)Math.floor(wy(south)/T);
+        int x0=(int)Math.floor(wx(west)/T);
+        int x1=(int)Math.floor(wx(east)/T);
+        int count=0;
+        for(int y=y0;y<=y1;y++){
+            if(y<0||y>=n)continue;
+            for(int x=x0;x<=x1;x++){
+                if(!countOnly)l.prefetch(MarineTileLoader.LAYER_BATHY,z,x,y);
+                count++;
+            }
+        }
+        return count;
+    }
+
+    public int cachedBathymetryRadiusKmCount(int radiusKm){
+        if(radiusKm<=0)return cachedBathymetryAreaCount(0);
+        double lat0=clat;
+        double lon0=clon;
+        double latDelta=radiusKm/111.32;
+        double lonScale=Math.max(0.1,Math.cos(Math.toRadians(lat0)));
+        double lonDelta=radiusKm/(111.32*lonScale);
+        double south=cap(lat0-latDelta), north=cap(lat0+latDelta);
+        double west=norm(lon0-lonDelta), east=norm(lon0+lonDelta);
+        int n=1<<z;
+        int y0=(int)Math.floor(wy(north)/T);
+        int y1=(int)Math.floor(wy(south)/T);
+        int x0=(int)Math.floor(wx(west)/T);
+        int x1=(int)Math.floor(wx(east)/T);
+        int count=0;
+        for(int y=y0;y<=y1;y++){
+            if(y<0||y>=n)continue;
+            for(int x=x0;x<=x1;x++){
+                int xx=((x%n)+n)%n;
+                if(l.hasCached(MarineTileLoader.LAYER_BATHY,z,xx,y))count++;
+            }
+        }
+        return count;
+    }
+
+    public double centerLatitude(){return clat;}
+    public double centerLongitude(){return clon;}
 
     /**
      * Downloads bathymetry around the current viewport.
