@@ -58,6 +58,7 @@ public class MarineMapActivity extends Activity implements LocationListener {
     private Button sourceButton;
     private Button sonarButton;
     private Button bathyButton;
+    private LinearLayout guidancePanel;
     private TextView routeGuidance;
     private TextView safetyGuidance;
     private Button skipWaypointButton;
@@ -177,15 +178,34 @@ public class MarineMapActivity extends Activity implements LocationListener {
     }
 
     private void buildGuidanceOverlay(FrameLayout root){
-        LinearLayout panel=new LinearLayout(this); panel.setOrientation(LinearLayout.VERTICAL); panel.setPadding(dp(10),dp(5),dp(10),dp(5)); panel.setBackground(bg());
-        routeGuidance=chip("READY • No active route",10,true); routeGuidance.setGravity(Gravity.START|Gravity.CENTER_VERTICAL); panel.addView(routeGuidance,new LinearLayout.LayoutParams(-1,dp(28)));
-        safetyGuidance=chip("SAFETY • normal",9,true); safetyGuidance.setGravity(Gravity.START|Gravity.CENTER_VERTICAL); safetyGuidance.setTextColor(0xff8fffc0); panel.addView(safetyGuidance,new LinearLayout.LayoutParams(-1,dp(25)));
+        guidancePanel=new LinearLayout(this);
+        guidancePanel.setOrientation(LinearLayout.VERTICAL);
+        guidancePanel.setPadding(dp(10),dp(4),dp(10),dp(4));
+        guidancePanel.setBackground(bg());
+
+        routeGuidance=chip("NAVIGASI",10,true);
+        routeGuidance.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);
+        guidancePanel.addView(routeGuidance,new LinearLayout.LayoutParams(-1,dp(28)));
+
+        safetyGuidance=chip("SAFETY • normal",9,true);
+        safetyGuidance.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);
+        safetyGuidance.setTextColor(0xff8fffc0);
+        guidancePanel.addView(safetyGuidance,new LinearLayout.LayoutParams(-1,dp(24)));
+
         LinearLayout controls=new LinearLayout(this);
-        skipWaypointButton=navButton("SKIP"); skipWaypointButton.setOnClickListener(v->skipWaypoint());
-        endRouteButton=navButton("END ROUTE"); endRouteButton.setOnClickListener(v->endRoute());
-        skipWaypointButton.setVisibility(android.view.View.GONE); endRouteButton.setVisibility(android.view.View.GONE);
-        controls.addView(skipWaypointButton,new LinearLayout.LayoutParams(0,dp(28),1f)); controls.addView(endRouteButton,new LinearLayout.LayoutParams(0,dp(28),1f)); panel.addView(controls,new LinearLayout.LayoutParams(-1,dp(29)));
-        FrameLayout.LayoutParams p=new FrameLayout.LayoutParams(-1,dp(72)); p.gravity=Gravity.BOTTOM; p.setMargins(dp(8),0,dp(8),dp(70)); root.addView(panel,p);
+        skipWaypointButton=navButton("SKIP");
+        skipWaypointButton.setOnClickListener(v->skipWaypoint());
+        endRouteButton=navButton("END");
+        endRouteButton.setOnClickListener(v->endRoute());
+        controls.addView(skipWaypointButton,new LinearLayout.LayoutParams(0,dp(28),1f));
+        controls.addView(endRouteButton,new LinearLayout.LayoutParams(0,dp(28),1f));
+        guidancePanel.addView(controls,new LinearLayout.LayoutParams(-1,dp(29)));
+
+        guidancePanel.setVisibility(android.view.View.GONE);
+        FrameLayout.LayoutParams p=new FrameLayout.LayoutParams(-1,dp(89));
+        p.gravity=Gravity.BOTTOM;
+        p.setMargins(dp(8),0,dp(8),dp(70));
+        root.addView(guidancePanel,p);
     }
 
     private void skipWaypoint(){
@@ -776,6 +796,7 @@ public class MarineMapActivity extends Activity implements LocationListener {
         Double lat=currentLat(),lon=currentLon(),speed=currentSpeed(),course=currentHeading();
 
         boolean routeActive=active>=0&&active<route.size();
+        guidancePanel.setVisibility(routeActive?android.view.View.VISIBLE:android.view.View.GONE);
         skipWaypointButton.setEnabled(routeActive);
         endRouteButton.setEnabled(routeActive);
         skipWaypointButton.setVisibility(routeActive?android.view.View.VISIBLE:android.view.View.GONE);
@@ -932,7 +953,7 @@ public class MarineMapActivity extends Activity implements LocationListener {
     }
 
     private LinearLayout.LayoutParams square(){
-        LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(dp(48),dp(46)); p.setMargins(0,dp(3),0,dp(3)); return p;
+        LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(dp(44),dp(42)); p.setMargins(0,dp(3),0,dp(3)); return p;
     }
 
     private LinearLayout.LayoutParams navLp(){
