@@ -147,6 +147,7 @@ public class MarineMapView extends View {
         for(int y=y0;y<=y1;y++){
             if(y<0||y>=n)continue;
             for(int x=x0;x<=x1;x++){
+                int xx=((x%n)+n)%n;
                 if(!tileIntersectsRadiusKm(xx,y,z,lat0,lon0,radiusKm))continue;
                 if(l.hasCached(MarineTileLoader.LAYER_BATHY,z,xx,y))count++;
             }
