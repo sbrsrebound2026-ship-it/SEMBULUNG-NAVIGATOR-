@@ -34,41 +34,46 @@ public class AisActivity extends Activity {
 
     @Override protected void onCreate(Bundle b){
         super.onCreate(b);
-        ScrollView scroll=new ScrollView(this);scroll.setBackgroundColor(Color.rgb(3,27,61));
-        LinearLayout root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(dp(20),dp(24),dp(20),dp(30));scroll.addView(root,new ScrollView.LayoutParams(-1,-2));
+        ScrollView scroll=new ScrollView(this); scroll.setBackgroundColor(Color.rgb(2,18,33));
+        LinearLayout root=new LinearLayout(this); root.setOrientation(LinearLayout.VERTICAL);
+        root.setPadding(dp(12),dp(12),dp(12),dp(20)); scroll.addView(root,new ScrollView.LayoutParams(-1,-2));
 
-        root.addView(text("AIS • CPA / TCPA",24,true));
-        TextView sub=text("Target AIS realtime dari Marine Data Service",13,false);sub.setPadding(0,dp(5),0,dp(14));root.addView(sub);
+        TextView title=text("AIS TARGETS",20,true); title.setGravity(Gravity.LEFT); root.addView(title);
+        TextView sub=text("Target kapal • CPA / TCPA • Marine Data Service",10,false); sub.setGravity(Gravity.LEFT); sub.setTextColor(0xff9fb4c5); root.addView(sub,top(2));
 
-        connection=panel("STATUS\nMarine Data Service belum aktif");
-        ownVessel=panel("KAPAL SENDIRI\nMenunggu NMEA");
-        statistics=panel("DATA AIS\n---");
-        root.addView(connection,lp());root.addView(ownVessel,lp());root.addView(statistics,lp());
+        connection=panel("SERVICE\nMenunggu koneksi"); root.addView(connection,top(12));
+        ownVessel=panel("KAPAL SENDIRI\nMenunggu NMEA"); root.addView(ownVessel,lp());
+        statistics=panel("TARGET\n---"); root.addView(statistics,lp());
 
-        root.addView(text("PORT UDP MARINE DATA",13,true),top(16));
-        portInput=new EditText(this);portInput.setInputType(InputType.TYPE_CLASS_NUMBER);
-        portInput.setText(String.valueOf(MarineDataService.DEFAULT_PORT));portInput.setTextColor(Color.WHITE);portInput.setGravity(Gravity.CENTER);
-        root.addView(portInput,lp());
+        LinearLayout service=new LinearLayout(this);
+        portInput=new EditText(this); portInput.setInputType(InputType.TYPE_CLASS_NUMBER); portInput.setText(String.valueOf(MarineDataService.DEFAULT_PORT)); portInput.setTextColor(Color.WHITE); portInput.setGravity(Gravity.CENTER); portInput.setBackground(panelBg());
+        service.addView(portInput,new LinearLayout.LayoutParams(0,dp(48),1f));
+        Button start=button("START"); start.setOnClickListener(v->startServiceListener()); service.addView(start,half());
+        Button stop=button("STOP"); stop.setOnClickListener(v->MarineDataService.stop(this)); service.addView(stop,half());
+        root.addView(service,top(8));
 
-        LinearLayout controls=new LinearLayout(this);
-        Button start=button("MULAI SERVICE");start.setOnClickListener(v->startServiceListener());controls.addView(start,half());
-        Button stop=button("STOP");stop.setOnClickListener(v->MarineDataService.stop(this));controls.addView(stop,half());
-        root.addView(controls,lp());
+        TextView titleTargets=text("TARGET AIS AKTIF",12,true); titleTargets.setGravity(Gravity.LEFT); root.addView(titleTargets,top(14));
+        targetList=new LinearLayout(this); targetList.setOrientation(LinearLayout.VERTICAL); root.addView(targetList,new LinearLayout.LayoutParams(-1,-2));
 
-        root.addView(text("UJI !AIVDM / !AIVDO MANUAL",13,true),top(18));
-        manualInput=new EditText(this);manualInput.setTextColor(Color.WHITE);manualInput.setHintTextColor(0xFF94A3B8);
-        manualInput.setHint("Tempel kalimat AIS NMEA 0183");manualInput.setMinLines(2);root.addView(manualInput,lp());
-        Button parse=button("PROSES AIS MANUAL");parse.setOnClickListener(v->processManual());root.addView(parse,lp());
+        LinearLayout tools=new LinearLayout(this);
+        Button manual=button("INPUT NMEA AIS"); manual.setOnClickListener(v->showManualInput()); tools.addView(manual,half());
+        Button clear=button("CLEAR"); clear.setOnClickListener(v->{AisTargetStore.clear(this);render();}); tools.addView(clear,half());
+        root.addView(tools,top(10));
 
-        TextView title=text("TARGET AIS AKTIF",16,true);title.setPadding(0,dp(22),0,dp(5));root.addView(title);
-        targetList=new LinearLayout(this);targetList.setOrientation(LinearLayout.VERTICAL);root.addView(targetList,new LinearLayout.LayoutParams(-1,-2));
+        Button map=button("BUKA CHART"); map.setOnClickListener(v->startActivity(new Intent(this,MarineMapActivity.class))); root.addView(map,lp());
+        Button back=button("KEMBALI"); back.setOnClickListener(v->finish()); root.addView(back,top(12));
 
-        Button clear=button("HAPUS TARGET AIS");clear.setOnClickListener(v->{AisTargetStore.clear(this);render();});root.addView(clear,top(16));
-        Button map=button("BUKA MARINE MAP");map.setOnClickListener(v->startActivity(new Intent(this,MarineMapActivity.class)));root.addView(map,lp());
-        Button back=button("KEMBALI");back.setOnClickListener(v->finish());root.addView(back,lp());
+        setContentView(scroll); requestNotificationPermission();
+    }
 
-        setContentView(scroll);requestNotificationPermission();
+    private void showManualInput(){
+        final EditText input=new EditText(this);
+        input.setTextColor(Color.WHITE); input.setHintTextColor(0xff94A3B8); input.setHint("!AIVDM / !AIVDO");
+        input.setMinLines(3);
+        new android.app.AlertDialog.Builder(this).setTitle("INPUT AIS NMEA").setView(input)
+                .setNegativeButton("BATAL",null).setPositiveButton("PROSES",(d,w)->{
+                    manualInput=input; processManual();
+                }).show();
     }
 
     private void startServiceListener(){
@@ -143,9 +148,9 @@ public class AisActivity extends Activity {
     @Override protected void onResume(){super.onResume();handler.removeCallbacks(refresh);handler.post(refresh);}
     @Override protected void onPause(){handler.removeCallbacks(refresh);super.onPause();}
 
-    private TextView panel(String s){TextView t=text(s,15,true);t.setPadding(dp(12),dp(12),dp(12),dp(12));t.setBackgroundColor(Color.rgb(7,57,94));return t;}
+    private TextView panel(String s){TextView t=text(s,12,true);t.setGravity(Gravity.LEFT|Gravity.CENTER_VERTICAL);t.setPadding(dp(12),dp(9),dp(12),dp(9));t.setBackgroundColor(Color.rgb(7,43,70));return t;}
     private TextView text(String s,int sp,boolean bold){TextView t=new TextView(this);t.setText(s);t.setTextColor(Color.WHITE);t.setTextSize(sp);t.setGravity(Gravity.CENTER);if(bold)t.setTypeface(Typeface.DEFAULT_BOLD);return t;}
-    private Button button(String s){Button b=new Button(this);b.setText(s);b.setAllCaps(false);return b;}
+    private Button button(String s){Button b=new Button(this);b.setText(s);b.setAllCaps(false);b.setTextSize(11);b.setTextColor(Color.WHITE);b.setMinHeight(0);b.setMinWidth(0);return b;}
     private LinearLayout.LayoutParams lp(){LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,-2);p.setMargins(0,dp(8),0,0);return p;}
     private LinearLayout.LayoutParams top(int m){LinearLayout.LayoutParams p=lp();p.topMargin=dp(m);return p;}
     private LinearLayout.LayoutParams half(){LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,-2,1f);p.setMargins(dp(3),0,dp(3),0);return p;}
