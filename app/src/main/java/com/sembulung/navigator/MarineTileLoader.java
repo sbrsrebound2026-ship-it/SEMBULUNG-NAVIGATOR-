@@ -146,6 +146,12 @@ public final class MarineTileLoader {
                 +"&WIDTH="+TILE_SIZE+"&HEIGHT="+TILE_SIZE;
     }
 
+    public boolean hasCached(String layer,int z,int x,int y) {
+        String key=layer+"_"+z+"_"+x+"_"+y;
+        File disk=new File(cacheDir,key+".png");
+        return disk.exists()&&disk.length()>0;
+    }
+
     public void prefetch(String layer,int z,int x,int y) {
         if(z<1||z>18)return;
         int n=1<<z;
