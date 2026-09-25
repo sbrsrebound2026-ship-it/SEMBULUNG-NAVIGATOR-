@@ -146,6 +146,11 @@ public final class MarineTileLoader {
                 +"&WIDTH="+TILE_SIZE+"&HEIGHT="+TILE_SIZE;
     }
 
+    public File cachedTileFile(String layer,int z,int x,int y) {
+        String key=layer+"_"+z+"_"+x+"_"+y;
+        return new File(cacheDir,key+".png");
+    }
+
     public boolean hasCached(String layer,int z,int x,int y) {
         String key=layer+"_"+z+"_"+x+"_"+y;
         File disk=new File(cacheDir,key+".png");
