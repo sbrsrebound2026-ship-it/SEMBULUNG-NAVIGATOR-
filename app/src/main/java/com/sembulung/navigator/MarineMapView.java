@@ -627,7 +627,7 @@ public class MarineMapView extends View {
         return ((x+0.5)/n)*360.0-180.0;
     }
 
-    private double tileCenterLatitude(int y,int zoom){
+    private double tileCenterLatitude(double y,int zoom){
         int n=1<<zoom;
         double mercator=Math.PI*(1.0-2.0*(y+0.5)/n);
         return Math.toDegrees(Math.atan(Math.sinh(mercator)));
