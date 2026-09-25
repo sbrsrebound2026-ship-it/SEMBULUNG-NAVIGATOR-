@@ -165,7 +165,7 @@ public class ActivationActivity extends Activity {
         statusText.setText("Aktivasi berhasil. Membuka SEMBULUNG NAVIGATOR...");
         statusText.setTextColor(Color.rgb(120, 235, 165));
         Toast.makeText(this, "Aktivasi berhasil", Toast.LENGTH_SHORT).show();
-        openHome();
+        openMarineMap();
     }
 
     private void openWhatsApp() {
