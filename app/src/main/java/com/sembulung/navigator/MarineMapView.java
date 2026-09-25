@@ -26,6 +26,7 @@ public class MarineMapView extends View {
     private boolean nmea,seamarks=true,globalBathymetry=true,moved=false;
     private float lx,ly;
     private boolean drag;
+    private int previewRadiusKm=0;
 
     private SonarChartEngine.Chart sonarChart;
     private boolean sonarEnabled=true;
@@ -153,7 +154,8 @@ public class MarineMapView extends View {
 
     public double centerLatitude(){return clat;}
     public double centerLongitude(){return clon;}
-
+    public void downloadPreviewRadiusKm(int radiusKm){previewRadiusKm=Math.max(0,radiusKm);invalidate();}
+    public int previewRadiusKm(){return previewRadiusKm;}
     /**
      * Downloads bathymetry around the current viewport.
      * radiusTiles=0 means viewport only; 2 and 5 add a 5x5 or 11x11 tile ring.
@@ -244,6 +246,7 @@ public class MarineMapView extends View {
         if(seamarks)layer(c,MarineTileLoader.LAYER_SEAMARK);
         if(sonarEnabled&&sonarChart!=null&&sonarContours)drawSonarContours(c);
         if(sonarEnabled&&sonarChart!=null&&sonarSoundings)drawSonarSoundings(c);
+        if(previewRadiusKm>0)drawBathymetryPreview(c);
         drawRouteAndWaypoints(c);
         if(aisEnabled)drawAis(c);
         boat(c);
@@ -269,6 +272,21 @@ public class MarineMapView extends View {
                 }
             }
         }
+    }
+
+    private void drawBathymetryPreview(Canvas c){
+        double metersPerPixel=156543.03392*Math.max(0.01,Math.cos(Math.toRadians(clat)))/(1<<z);
+        float r=(float)((previewRadiusKm*1000.0)/metersPerPixel);
+        float cx=getWidth()/2f,cy=getHeight()/2f;
+        p.setStyle(Paint.Style.STROKE);
+        p.setStrokeWidth(dp(2));
+        p.setColor(0x99ffd54f);
+        c.drawCircle(cx,cy,r,p);
+        p.setStyle(Paint.Style.FILL);
+        p.setColor(0x18ffd54f);
+        c.drawCircle(cx,cy,r,p);
+        p.setColor(0xffffd54f);
+        c.drawCircle(cx,cy,dp(4),p);
     }
 
     private void drawSonarShading(Canvas c){
