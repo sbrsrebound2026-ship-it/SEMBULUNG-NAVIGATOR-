@@ -151,6 +151,7 @@ public class AisActivity extends Activity {
     private TextView panel(String s){TextView t=text(s,12,true);t.setGravity(Gravity.LEFT|Gravity.CENTER_VERTICAL);t.setPadding(dp(12),dp(9),dp(12),dp(9));t.setBackgroundColor(Color.rgb(7,43,70));return t;}
     private TextView text(String s,int sp,boolean bold){TextView t=new TextView(this);t.setText(s);t.setTextColor(Color.WHITE);t.setTextSize(sp);t.setGravity(Gravity.CENTER);if(bold)t.setTypeface(Typeface.DEFAULT_BOLD);return t;}
     private Button button(String s){Button b=new Button(this);b.setText(s);b.setAllCaps(false);b.setTextSize(11);b.setTextColor(Color.WHITE);b.setMinHeight(0);b.setMinWidth(0);return b;}
+    private android.graphics.drawable.GradientDrawable panelBg(){android.graphics.drawable.GradientDrawable d=new android.graphics.drawable.GradientDrawable();d.setColor(0xd10a2136);d.setCornerRadius(dp(12));d.setStroke(dp(1),0x4457b9dd);return d;}
     private LinearLayout.LayoutParams lp(){LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,-2);p.setMargins(0,dp(8),0,0);return p;}
     private LinearLayout.LayoutParams top(int m){LinearLayout.LayoutParams p=lp();p.topMargin=dp(m);return p;}
     private LinearLayout.LayoutParams half(){LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,-2,1f);p.setMargins(dp(3),0,dp(3),0);return p;}
