@@ -402,6 +402,8 @@ public class NavigationActivity extends Activity implements LocationListener {
         return p;
     }
 
+    private LinearLayout.LayoutParams half(){LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,-2,1f);p.setMargins(dp(3),0,dp(3),0);return p;}
+
     private int dp(int v){ return Math.round(v*getResources().getDisplayMetrics().density); }
 
     private static class Waypoint {
