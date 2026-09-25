@@ -629,10 +629,12 @@ public class MarineMapView extends View {
         double south=tileCenterLatitude(y+0.5,zoom);
         double scale=111.32;
         double cos=Math.max(0.1,Math.cos(Math.toRadians(centerLat)));
-        double px=norm(centerLon)*cos*scale;
+        double px=0.0;
         double py=centerLat*scale;
-        double x1=norm(west)*cos*scale;
-        double x2=norm(east)*cos*scale;
+        double westDelta=wrapLongitude(west-centerLon);
+        double eastDelta=wrapLongitude(east-centerLon);
+        double x1=westDelta*cos*scale;
+        double x2=eastDelta*cos*scale;
         double y1=south*scale;
         double y2=north*scale;
         double minX=Math.min(x1,x2),maxX=Math.max(x1,x2);
@@ -652,6 +654,13 @@ public class MarineMapView extends View {
         int n=1<<zoom;
         double mercator=Math.PI*(1.0-2.0*(y+0.5)/n);
         return Math.toDegrees(Math.atan(Math.sinh(mercator)));
+    }
+
+    private double wrapLongitude(double lon){
+        double v=lon%360.0;
+        if(v>180.0)v-=360.0;
+        if(v<-180.0)v+=360.0;
+        return v;
     }
 
     private double distanceKm(double lat1,double lon1,double lat2,double lon2){
