@@ -600,6 +600,26 @@ public class MarineMapView extends View {
         return true;
     }
 
+    private double tileCenterLongitude(int x,int zoom){
+        int n=1<<zoom;
+        return ((x+0.5)/n)*360.0-180.0;
+    }
+
+    private double tileCenterLatitude(int y,int zoom){
+        int n=1<<zoom;
+        double mercator=Math.PI*(1.0-2.0*(y+0.5)/n);
+        return Math.toDegrees(Math.atan(Math.sinh(mercator)));
+    }
+
+    private double distanceKm(double lat1,double lon1,double lat2,double lon2){
+        double r=6371.0088;
+        double p1=Math.toRadians(lat1),p2=Math.toRadians(lat2);
+        double dp=Math.toRadians(lat2-lat1),dl=Math.toRadians(norm(lon2-lon1));
+        double a=Math.sin(dp/2)*Math.sin(dp/2)
+                +Math.cos(p1)*Math.cos(p2)*Math.sin(dl/2)*Math.sin(dl/2);
+        return r*2.0*Math.atan2(Math.sqrt(a),Math.sqrt(Math.max(0.0,1.0-a)));
+    }
+
     private double wx(double o){double w=T*(double)(1<<z);return(norm(o)+180)/360*w;}
     private double wy(double a){a=cap(a);double s=Math.sin(Math.toRadians(a)),w=T*(double)(1<<z);return(.5-Math.log((1+s)/(1-s))/(4*Math.PI))*w;}
     private double lon(double x){double w=T*(double)(1<<z);x=((x%w)+w)%w;return x/w*360-180;}
