@@ -395,6 +395,28 @@ public class MarineMapActivity extends Activity implements LocationListener {
         }
     }
 
+    private void appMenu(){
+        String[] items={
+                "Offline Charts",
+                "Route & Waypoints",
+                "Sonar & NMEA",
+                "AIS Targets",
+                "Search Coordinate",
+                "Settings"
+        };
+        new AlertDialog.Builder(this)
+                .setTitle("SEMBULUNG NAVIGATOR")
+                .setItems(items,(d,w)->{
+                    if(w==0) startActivity(new Intent(this,OfflineMapActivity.class));
+                    else if(w==1) startActivity(new Intent(this,NavigationActivity.class));
+                    else if(w==2) startActivity(new Intent(this,NmeaActivity.class));
+                    else if(w==3) startActivity(new Intent(this,AisActivity.class));
+                    else if(w==4) startActivity(new Intent(this,SearchCoordinateActivity.class));
+                    else if(w==5) startActivity(new Intent(this,SettingsActivity.class));
+                })
+                .show();
+    }
+
     private void layerMenu(){
         String[] items={
                 "Bathymetry GEBCO: "+(map!=null&&map.globalBathymetry()?"ON":"OFF"),
