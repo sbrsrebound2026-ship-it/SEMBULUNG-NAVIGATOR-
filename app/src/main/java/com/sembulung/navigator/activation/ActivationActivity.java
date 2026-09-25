@@ -21,7 +21,7 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import com.sembulung.navigator.HomeActivity;
+import com.sembulung.navigator.MarineMapActivity;
 
 public class ActivationActivity extends Activity {
     private static final String ADMIN_WA = "6281234406456";
@@ -37,7 +37,7 @@ public class ActivationActivity extends Activity {
         deviceCode = DeviceIdentity.formattedDeviceCode(this);
 
         if (ActivationManager.isActivated(this)) {
-            openHome();
+            openMarineMap();
             return;
         }
         setContentView(buildUi());
@@ -165,7 +165,7 @@ public class ActivationActivity extends Activity {
         statusText.setText("Aktivasi berhasil. Membuka SEMBULUNG NAVIGATOR...");
         statusText.setTextColor(Color.rgb(120, 235, 165));
         Toast.makeText(this, "Aktivasi berhasil", Toast.LENGTH_SHORT).show();
-        openHome();
+        openMarineMap();
     }
 
     private void openWhatsApp() {
@@ -180,8 +180,8 @@ public class ActivationActivity extends Activity {
         }
     }
 
-    private void openHome() {
-        Intent intent = new Intent(this, HomeActivity.class);
+    private void openMarineMap() {
+        Intent intent = new Intent(this, MarineMapActivity.class);
         intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
         startActivity(intent);
         finish();
