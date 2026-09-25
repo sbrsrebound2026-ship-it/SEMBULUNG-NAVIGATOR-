@@ -14,6 +14,8 @@ import android.location.LocationManager;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import org.json.JSONArray;
+import org.json.JSONObject;
 import android.view.Gravity;
 import android.view.WindowManager;
 import android.widget.Button;
@@ -62,6 +64,8 @@ public class MarineMapActivity extends Activity implements LocationListener {
     private int lastArrivalIndex=-2;
     private long lastArrivalAt=0L;
     private String lastSafetyKey="";
+    private static final String BATHY_PREFS="sembulung_bathymetry";
+    private static final String BATHY_AREAS="areas";
 
     private int sourceMode=0; // 0 auto, 1 device GPS, 2 NMEA
 
@@ -309,23 +313,93 @@ public class MarineMapActivity extends Activity implements LocationListener {
 
     private void showBathymetryDownloadMenu(){
         String[] options={
-                "Area tampilan saat ini",
-                "Area diperluas • 5×5 tile",
-                "Area diperluas • 11×11 tile"
+                "Download area tampilan",
+                "Download area 5×5 tile",
+                "Download area 11×11 tile",
+                "Lihat area tersimpan"
         };
         new AlertDialog.Builder(this)
                 .setTitle("DOWNLOAD KONTUR KEDALAMAN")
-                .setMessage("Sumber: bathymetry GEBCO yang dirender OpenSeaMap. Data ini terpisah dari sounding sonar lokal.")
+                .setMessage("Sumber: bathymetry GEBCO yang dirender OpenSeaMap. Terpisah dari sounding sonar lokal.")
                 .setItems(options,(d,which)->{
+                    if(which==3){showSavedBathymetryAreas();return;}
                     int radius=which==0?0:which==1?2:5;
-                    int count=map.downloadBathymetryArea(radius);
-                    Toast.makeText(
-                            this,
-                            "Download dimulai • "+count+" tile • zoom "+map.zoomLevel(),
-                            Toast.LENGTH_LONG).show();
+                    int total=map.downloadBathymetryArea(radius);
+                    showBathymetryProgress(radius,total);
                 })
                 .setNegativeButton("Batal",null)
                 .show();
+    }
+
+    private void showBathymetryProgress(int radius,int total){
+        final TextView text=chip("Menyiapkan download…",13,true);
+        text.setPadding(dp(8),dp(8),dp(8),dp(8));
+        final AlertDialog dialog=new AlertDialog.Builder(this)
+                .setTitle("DOWNLOAD BATHYMETRY OFFLINE")
+                .setView(text)
+                .setNegativeButton("Tutup",null)
+                .create();
+        dialog.show();
+
+        final long started=System.currentTimeMillis();
+        final Runnable[] poll=new Runnable[1];
+        poll[0]=()->{
+            int done=map.cachedBathymetryAreaCount(radius);
+            int pct=total<=0?100:Math.min(100,(done*100)/total);
+            long sec=Math.max(1,(System.currentTimeMillis()-started)/1000L);
+            text.setText("Area: "+(radius==0?"tampilan":(radius==2?"5×5 tile":"11×11 tile"))
+                    +"\nZoom: "+map.zoomLevel()
+                    +"\nProgress: "+done+" / "+total+" tile ("+pct+"%)"
+                    +"\nWaktu: "+sec+" detik");
+            if(done>=total){
+                saveBathymetryArea(radius,total);
+                text.append("\n\n✓ Area tersimpan untuk penggunaan offline.");
+                return;
+            }
+            handler.postDelayed(poll[0],700L);
+        };
+        handler.post(poll[0]);
+    }
+
+    private void saveBathymetryArea(int radius,int total){
+        try{
+            android.content.SharedPreferences p=getSharedPreferences(BATHY_PREFS,MODE_PRIVATE);
+            JSONArray a=new JSONArray(p.getString(BATHY_AREAS,"[]"));
+            JSONObject o=new JSONObject();
+            o.put("zoom",map.zoomLevel());
+            o.put("radius",radius);
+            o.put("tiles",total);
+            o.put("saved_at",System.currentTimeMillis());
+            JSONArray b=new JSONArray();
+            b.put(o);
+            for(int i=0;i<a.length()&&i<9;i++)b.put(a.get(i));
+            p.edit().putString(BATHY_AREAS,b.toString()).apply();
+        }catch(Exception ignored){}
+    }
+
+    private void showSavedBathymetryAreas(){
+        try{
+            JSONArray a=new JSONArray(getSharedPreferences(BATHY_PREFS,MODE_PRIVATE).getString(BATHY_AREAS,"[]"));
+            if(a.length()==0){
+                new AlertDialog.Builder(this).setTitle("AREA OFFLINE").setMessage("Belum ada area kontur yang selesai diunduh.")
+                        .setPositiveButton("OK",null).show();
+                return;
+            }
+            StringBuilder b=new StringBuilder();
+            for(int i=0;i<a.length();i++){
+                JSONObject o=a.getJSONObject(i);
+                long ts=o.optLong("saved_at",0);
+                String date=new java.text.SimpleDateFormat("dd/MM/yyyy HH:mm",Locale.US).format(new java.util.Date(ts));
+                b.append("• Zoom ").append(o.optInt("zoom",0))
+                 .append(" • ").append(o.optInt("tiles",0)).append(" tile")
+                 .append(" • ").append(date).append("\n");
+            }
+            new AlertDialog.Builder(this).setTitle("AREA BATHYMETRY OFFLINE")
+                    .setMessage(b.toString())
+                    .setPositiveButton("OK",null).show();
+        }catch(Exception e){
+            Toast.makeText(this,"Daftar area tidak dapat dibaca",Toast.LENGTH_SHORT).show();
+        }
     }
 
     private void layerMenu(){
