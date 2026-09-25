@@ -370,8 +370,10 @@ public class MarineMapActivity extends Activity implements LocationListener {
                 .setTitle("DOWNLOAD BATHYMETRY OFFLINE")
                 .setView(text)
                 .setNegativeButton("Tutup",null)
+                .setPositiveButton("EXPORT MBTILES",(d,w)->startMbtilesExport())
                 .create();
         dialog.show();
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setEnabled(false);
 
         final long started=System.currentTimeMillis();
         final Runnable[] poll=new Runnable[1];
@@ -392,10 +394,8 @@ public class MarineMapActivity extends Activity implements LocationListener {
                 exportLon=map.centerLongitude();
                 exportZoom=map.zoomLevel();
                 text.append("\n\n✓ Area kontur tersimpan untuk penggunaan offline.");
-                if(dialog.getButton(AlertDialog.BUTTON_POSITIVE)==null){
-                    dialog.setButton(AlertDialog.BUTTON_POSITIVE,"EXPORT MBTILES",(d,w)->startMbtilesExport());
-                    dialog.getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(0xff00c8ff);
-                }
+                dialog.getButton(AlertDialog.BUTTON_POSITIVE).setEnabled(true);
+                dialog.getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(0xff00c8ff);
                 return;
             }
             handler.postDelayed(poll[0],700L);
