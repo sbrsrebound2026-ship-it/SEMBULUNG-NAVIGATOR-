@@ -151,6 +151,21 @@ public final class MarineTileLoader {
         return new File(cacheDir,key+".png");
     }
 
+    public Bitmap getCached(String layer,int z,int x,int y) {
+        if(z<1||z>18)return null;
+        int n=1<<z;
+        x=((x%n)+n)%n;
+        if(y<0||y>=n)return null;
+        String key=layer+"_"+z+"_"+x+"_"+y;
+        Bitmap mem=memory.get(key);
+        if(mem!=null&&!mem.isRecycled())return mem;
+        File disk=new File(cacheDir,key+".png");
+        if(!disk.exists()||disk.length()<=0)return null;
+        Bitmap b=BitmapFactory.decodeFile(disk.getAbsolutePath());
+        if(b!=null)memory.put(key,b);
+        return b;
+    }
+
     public boolean hasCached(String layer,int z,int x,int y) {
         String key=layer+"_"+z+"_"+x+"_"+y;
         File disk=new File(cacheDir,key+".png");
