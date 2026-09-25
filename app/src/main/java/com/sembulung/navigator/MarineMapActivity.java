@@ -373,7 +373,7 @@ public class MarineMapActivity extends Activity implements LocationListener {
                 .setPositiveButton("EXPORT MBTILES",(d,w)->startMbtilesExport())
                 .create();
         dialog.show();
-        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setEnabled(false);
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setEnabled(radiusKm>0);
 
         final long started=System.currentTimeMillis();
         final Runnable[] poll=new Runnable[1];
@@ -394,7 +394,7 @@ public class MarineMapActivity extends Activity implements LocationListener {
                 exportLon=map.centerLongitude();
                 exportZoom=map.zoomLevel();
                 text.append("\n\n✓ Area kontur tersimpan untuk penggunaan offline.");
-                dialog.getButton(AlertDialog.BUTTON_POSITIVE).setEnabled(true);
+                dialog.getButton(AlertDialog.BUTTON_POSITIVE).setEnabled(radiusKm>0);
                 dialog.getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(0xff00c8ff);
                 return;
             }
