@@ -600,6 +600,28 @@ public class MarineMapView extends View {
         return true;
     }
 
+    private boolean tileIntersectsRadiusKm(int x,int y,int zoom,double centerLat,double centerLon,double radiusKm){
+        int n=1<<zoom;
+        double west=x/(double)n*360.0-180.0;
+        double east=(x+1)/(double)n*360.0-180.0;
+        double north=tileCenterLatitude(y-0.5,zoom);
+        double south=tileCenterLatitude(y+0.5,zoom);
+        double scale=111.32;
+        double cos=Math.max(0.1,Math.cos(Math.toRadians(centerLat)));
+        double px=norm(centerLon)*cos*scale;
+        double py=centerLat*scale;
+        double x1=norm(west)*cos*scale;
+        double x2=norm(east)*cos*scale;
+        double y1=south*scale;
+        double y2=north*scale;
+        double minX=Math.min(x1,x2),maxX=Math.max(x1,x2);
+        double minY=Math.min(y1,y2),maxY=Math.max(y1,y2);
+        double nearestX=Math.max(minX,Math.min(px,maxX));
+        double nearestY=Math.max(minY,Math.min(py,maxY));
+        double dx=px-nearestX,dy=py-nearestY;
+        return Math.hypot(dx,dy)<=radiusKm;
+    }
+
     private double tileCenterLongitude(int x,int zoom){
         int n=1<<zoom;
         return ((x+0.5)/n)*360.0-180.0;
