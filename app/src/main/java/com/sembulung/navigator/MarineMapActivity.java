@@ -333,10 +333,28 @@ public class MarineMapActivity extends Activity implements LocationListener {
                     }
                     int[] radiiKm={1,5,10,25,50};
                     int radiusKm=radiiKm[which];
-                    int total=map.downloadBathymetryRadiusKm(radiusKm);
-                    showBathymetryProgressKm(radiusKm,total);
+                    showBathymetryRadiusConfirm(radiusKm);
                 })
                 .setNegativeButton("Batal",null)
+                .show();
+    }
+
+    private void showBathymetryRadiusConfirm(int radiusKm){
+        map.downloadPreviewRadiusKm(radiusKm);
+        String message="Lingkaran download: radius "+radiusKm+" km"
+                +"\\nPusat: "+String.format(Locale.US,"%.5f°, %.5f°",map.centerLatitude(),map.centerLongitude())
+                +"\\nZoom: "+map.zoomLevel()
+                +"\\n\\nGeser/zoom peta bila perlu, lalu tekan DOWNLOAD.";
+        new AlertDialog.Builder(this)
+                .setTitle("PREVIEW AREA BATHYMETRY")
+                .setMessage(message)
+                .setNegativeButton("BATAL",(d,w)->map.downloadPreviewRadiusKm(0))
+                .setPositiveButton("DOWNLOAD",(d,w)->{
+                    int total=map.downloadBathymetryRadiusKm(radiusKm);
+                    map.downloadPreviewRadiusKm(0);
+                    showBathymetryProgressKm(radiusKm,total);
+                })
+                .setOnCancelListener(d->map.downloadPreviewRadiusKm(0))
                 .show();
     }
 
