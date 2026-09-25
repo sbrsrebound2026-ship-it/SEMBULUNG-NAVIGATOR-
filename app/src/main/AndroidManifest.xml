@@ -20,7 +20,8 @@
 
         <activity android:name=".HomeActivity" android:exported="false" />
         <activity android:name=".NavigationActivity" android:exported="false" />
-        <activity android:name=".OfflineMapActivity" android:exported="false" />\n        <activity android:name=".VectorOfflineMapActivity" android:exported="false" />
+        <activity android:name=".OfflineMapActivity" android:exported="false" />
+        <activity android:name=".VectorOfflineMapActivity" android:exported="false" />
         <activity android:name=".MarineMapActivity" android:exported="false" />
         <activity android:name=".NmeaActivity" android:exported="false" />
         <activity android:name=".AisActivity" android:exported="false" />
