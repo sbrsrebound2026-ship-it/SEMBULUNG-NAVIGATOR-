@@ -34,6 +34,7 @@ import com.sembulung.navigator.sonar.SonarHazardEngine;
 import com.sembulung.navigator.sonar.SonarSampleFilter;
 import com.sembulung.navigator.sonar.SonarSessionStore;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
