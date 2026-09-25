@@ -267,14 +267,44 @@ public class MarineMapView extends View {
                 int xx=((x%n)+n)%n;
                 Bitmap b=l.get(q,z,xx,y);
                 float dx=(float)(x*T-L),dy=(float)(y*T-U);
-                if(b!=null)c.drawBitmap(b,null,new RectF(dx,dy,dx+T,dy+T),p);
-                else if(q.equals(MarineTileLoader.LAYER_OSM)){
+                if(b!=null){
+                    c.drawBitmap(b,null,new RectF(dx,dy,dx+T,dy+T),p);
+                }else if(drawParentTile(c,q,z,xx,y,dx,dy)){
+                    // A cached lower-zoom tile temporarily fills the missing detail tile.
+                }else{
+                    // Keep the map surface continuous while the network tile is loading.
                     p.setStyle(Paint.Style.FILL);
-                    p.setColor(((x+y)&1)==0?Color.rgb(20,57,72):Color.rgb(24,65,80));
+                    p.setColor(q.equals(MarineTileLoader.LAYER_BATHY)
+                            ? Color.TRANSPARENT : Color.rgb(31,78,94));
                     c.drawRect(dx,dy,dx+T,dy+T,p);
                 }
             }
         }
+    }
+
+    private boolean drawParentTile(Canvas c,String layer,int z,int x,int y,float dx,float dy){
+        // Use the nearest cached ancestor so panning/zooming never exposes a checkerboard.
+        for(int level=z-1;level>=Math.max(3,z-3);level--){
+            int shift=z-level;
+            int px=x>>shift;
+            int py=y>>shift;
+            Bitmap parent=l.getCached(layer,level,px,py);
+            if(parent==null)continue;
+
+            int span=1<<shift;
+            int qx=x-(px<<shift);
+            int qy=y-(py<<shift);
+            float sw=parent.getWidth()/(float)span;
+            float sh=parent.getHeight()/(float)span;
+            Rect src=new Rect(
+                    Math.round(qx*sw),
+                    Math.round(qy*sh),
+                    Math.round((qx+1)*sw),
+                    Math.round((qy+1)*sh));
+            c.drawBitmap(parent,src,new RectF(dx,dy,dx+T,dy+T),p);
+            return true;
+        }
+        return false;
     }
 
     private void drawBathymetryPreview(Canvas c){
