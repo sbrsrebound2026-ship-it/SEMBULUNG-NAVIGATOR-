@@ -562,4 +562,287 @@ public class OfflineMapActivity extends Activity implements LocationListener {
         return Math.round(v * getResources().getDisplayMetrics().density);
     }
 
+
+    private class MbTilesView extends View {
+        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private double centerLat = 0.0;
+        private double centerLon = 0.0;
+        private float lastX;
+        private float lastY;
+        private boolean dragging = false;
+        private boolean hasInitialCenter = false;
+
+        MbTilesView(Context context) {
+            super(context);
+            paint.setTextSize(dp(12));
+            paint.setStrokeWidth(dp(2));
+            setBackgroundColor(Color.rgb(1,15,35));
+        }
+
+        void setZoom(int z) {
+            zoom = nearestAvailableZoom(z);
+            status.setText("Peta aktif • zoom " + zoom + " • tersedia " + availableZoomsText()
+                    + " • " + tileScheme.toUpperCase(Locale.US));
+            invalidate();
+        }
+
+        void stepZoom(int direction) {
+            zoom = adjacentAvailableZoom(zoom,direction);
+            status.setText("Peta aktif • zoom " + zoom + " • tersedia " + availableZoomsText()
+                    + " • " + tileScheme.toUpperCase(Locale.US));
+            invalidate();
+        }
+
+        void centerOn(double lat,double lon) {
+            centerLat = clampLat(lat);
+            centerLon = normalizeLon(lon);
+            hasInitialCenter = true;
+            invalidate();
+        }
+
+        @Override protected void onDraw(Canvas canvas) {
+            super.onDraw(canvas);
+
+            if(mapDb == null) {
+                paint.setColor(Color.LTGRAY);
+                paint.setTextAlign(Paint.Align.CENTER);
+                paint.setTextSize(dp(15));
+                canvas.drawText("IMPOR FILE .MBTILES UNTUK MEMULAI",getWidth()/2f,getHeight()/2f,paint);
+                return;
+            }
+
+            drawTiles(canvas);
+            drawRoute(canvas);
+            drawWaypoints(canvas);
+            drawVessel(canvas);
+            drawTelemetry(canvas);
+            drawCrosshair(canvas);
+        }
+
+        private void drawTiles(Canvas canvas) {
+            double world = 256.0 * (1 << zoom);
+            double cx = lonToWorldX(centerLon,zoom);
+            double cy = latToWorldY(centerLat,zoom);
+
+            double left = cx - getWidth()/2.0;
+            double top = cy - getHeight()/2.0;
+
+            int minX = (int)Math.floor(left/256.0);
+            int maxX = (int)Math.floor((left+getWidth())/256.0);
+            int minY = (int)Math.floor(top/256.0);
+            int maxY = (int)Math.floor((top+getHeight())/256.0);
+            int n = 1 << zoom;
+
+            paint.setColor(Color.rgb(8,31,51));
+            canvas.drawRect(0,0,getWidth(),getHeight(),paint);
+
+            for(int ty=minY;ty<=maxY;ty++) {
+                if(ty < 0 || ty >= n) continue;
+                for(int tx=minX;tx<=maxX;tx++) {
+                    int wrappedX = ((tx % n) + n) % n;
+                    Bitmap tile = loadTile(zoom,wrappedX,ty);
+                    float dx = (float)(tx*256.0-left);
+                    float dy = (float)(ty*256.0-top);
+                    if(tile != null) {
+                        canvas.drawBitmap(tile,null,new android.graphics.RectF(dx,dy,dx+256,dy+256),paint);
+                        tile.recycle();
+                    }
+                }
+            }
+        }
+
+        private Bitmap loadTile(int z,int x,int y) {
+            if(mapDb == null) return null;
+            int n = 1 << z;
+            int row = "xyz".equals(tileScheme) ? y : (n - 1 - y);
+            Cursor c = null;
+            try {
+                c = mapDb.rawQuery(
+                        "SELECT tile_data FROM tiles WHERE zoom_level=? AND tile_column=? AND tile_row=? LIMIT 1",
+                        new String[]{String.valueOf(z),String.valueOf(x),String.valueOf(row)});
+                if(c.moveToFirst()) {
+                    byte[] data = c.getBlob(0);
+                    return BitmapFactory.decodeByteArray(data,0,data.length);
+                }
+            } catch(Exception ignored) {
+            } finally {
+                if(c != null) c.close();
+            }
+            return null;
+        }
+
+        private void drawVessel(Canvas canvas) {
+            Double lat = activeLat();
+            Double lon = activeLon();
+            if(lat == null || lon == null) return;
+
+            float[] p = pointFor(lat,lon);
+            Double h = activeHeading();
+            float heading = h == null ? 0f : h.floatValue();
+
+            paint.setColor(useNmeaPosition() ? Color.MAGENTA : Color.CYAN);
+            paint.setStyle(Paint.Style.FILL);
+
+            Path boat = new Path();
+            boat.moveTo(p[0],p[1]-dp(14));
+            boat.lineTo(p[0]-dp(9),p[1]+dp(11));
+            boat.lineTo(p[0],p[1]+dp(6));
+            boat.lineTo(p[0]+dp(9),p[1]+dp(11));
+            boat.close();
+
+            canvas.save();
+            canvas.rotate(heading,p[0],p[1]);
+            canvas.drawPath(boat,paint);
+            canvas.restore();
+
+            paint.setStyle(Paint.Style.STROKE);
+            paint.setStrokeWidth(dp(2));
+            paint.setColor(Color.WHITE);
+            canvas.drawCircle(p[0],p[1],dp(16),paint);
+            paint.setStyle(Paint.Style.FILL);
+        }
+
+        private void drawTelemetry(Canvas canvas) {
+            String source = useNmeaPosition() ? "NMEA" : "GPS HP";
+            Double h = activeHeading();
+            String headingText = h == null ? "---°" : String.format(Locale.US,"%.0f°",h);
+            String depthText = "--- m";
+            if(nmeaSnapshot != null && nmeaSnapshot.depthFresh(NMEA_FRESH_MS)) {
+                depthText = String.format(Locale.US,"%.1f m",nmeaSnapshot.depth);
+            }
+
+            paint.setColor(0xCC001326);
+            canvas.drawRect(dp(8),dp(8),dp(190),dp(72),paint);
+            paint.setColor(Color.WHITE);
+            paint.setTextAlign(Paint.Align.LEFT);
+            paint.setTextSize(dp(12));
+            canvas.drawText("SOURCE " + source,dp(16),dp(28),paint);
+            canvas.drawText("HDG " + headingText + "   DEPTH " + depthText,dp(16),dp(50),paint);
+        }
+
+        private void drawWaypoints(Canvas canvas) {
+            paint.setTextSize(dp(12));
+            paint.setTextAlign(Paint.Align.LEFT);
+            for(int i=0;i<waypoints.size();i++) {
+                Waypoint wp = waypoints.get(i);
+                float[] p = pointFor(wp.lat,wp.lon);
+                if(p[0] < -50 || p[0] > getWidth()+50 || p[1] < -50 || p[1] > getHeight()+50) continue;
+                paint.setColor(i == activeIndex ? Color.YELLOW : Color.WHITE);
+                canvas.drawCircle(p[0],p[1],dp(i == activeIndex ? 7 : 5),paint);
+                canvas.drawText(wp.name,p[0]+dp(9),p[1]-dp(7),paint);
+            }
+        }
+
+        private void drawRoute(Canvas canvas) {
+            Double lat = activeLat();
+            Double lon = activeLon();
+            if(lat == null || lon == null || activeIndex < 0 || activeIndex >= waypoints.size()) return;
+            Waypoint wp = waypoints.get(activeIndex);
+            float[] a = pointFor(lat,lon);
+            float[] b = pointFor(wp.lat,wp.lon);
+            paint.setColor(Color.YELLOW);
+            paint.setStrokeWidth(dp(3));
+            canvas.drawLine(a[0],a[1],b[0],b[1],paint);
+        }
+
+        private void drawCrosshair(Canvas canvas) {
+            float x = getWidth()/2f;
+            float y = getHeight()/2f;
+            paint.setColor(0x99FFFFFF);
+            paint.setStrokeWidth(dp(1));
+            canvas.drawLine(x-dp(10),y,x+dp(10),y,paint);
+            canvas.drawLine(x,y-dp(10),x,y+dp(10),paint);
+        }
+
+        private float[] pointFor(double lat,double lon) {
+            double cx = lonToWorldX(centerLon,zoom);
+            double cy = latToWorldY(centerLat,zoom);
+            double px = lonToWorldX(lon,zoom);
+            double py = latToWorldY(lat,zoom);
+            double world = 256.0 * (1 << zoom);
+            double dx = px - cx;
+            if(dx > world/2) dx -= world;
+            if(dx < -world/2) dx += world;
+            return new float[]{
+                    (float)(getWidth()/2.0 + dx),
+                    (float)(getHeight()/2.0 + (py-cy))
+            };
+        }
+
+        @Override public boolean onTouchEvent(MotionEvent e) {
+            switch(e.getActionMasked()) {
+                case MotionEvent.ACTION_DOWN:
+                    lastX = e.getX();
+                    lastY = e.getY();
+                    dragging = true;
+                    return true;
+                case MotionEvent.ACTION_MOVE:
+                    if(!dragging) return true;
+                    float dx = e.getX()-lastX;
+                    float dy = e.getY()-lastY;
+                    lastX = e.getX();
+                    lastY = e.getY();
+
+                    double cx = lonToWorldX(centerLon,zoom) - dx;
+                    double cy = latToWorldY(centerLat,zoom) - dy;
+                    centerLon = worldXToLon(cx,zoom);
+                    centerLat = worldYToLat(cy,zoom);
+                    hasInitialCenter = true;
+                    invalidate();
+                    return true;
+                case MotionEvent.ACTION_UP:
+                case MotionEvent.ACTION_CANCEL:
+                    dragging = false;
+                    return true;
+            }
+            return true;
+        }
+
+        private double lonToWorldX(double lon,int z) {
+            double world = 256.0 * (1 << z);
+            return (normalizeLon(lon)+180.0)/360.0*world;
+        }
+
+        private double latToWorldY(double lat,int z) {
+            lat = clampLat(lat);
+            double sin = Math.sin(Math.toRadians(lat));
+            double world = 256.0 * (1 << z);
+            return (0.5 - Math.log((1+sin)/(1-sin))/(4*Math.PI))*world;
+        }
+
+        private double worldXToLon(double x,int z) {
+            double world = 256.0 * (1 << z);
+            x = ((x % world) + world) % world;
+            return x/world*360.0-180.0;
+        }
+
+        private double worldYToLat(double y,int z) {
+            double world = 256.0 * (1 << z);
+            y = Math.max(0,Math.min(world,y));
+            double n = Math.PI - 2.0*Math.PI*y/world;
+            return Math.toDegrees(Math.atan(Math.sinh(n)));
+        }
+
+        private double clampLat(double lat) {
+            return Math.max(-85.05112878,Math.min(85.05112878,lat));
+        }
+
+        private double normalizeLon(double lon) {
+            double r = lon % 360.0;
+            if(r > 180) r -= 360;
+            if(r < -180) r += 360;
+            return r;
+        }
+    }
+
+    private static class Waypoint {
+        final String name;
+        final double lat;
+        final double lon;
+        Waypoint(String name,double lat,double lon) {
+            this.name=name;
+            this.lat=lat;
+            this.lon=lon;
+        }
+    }
 }
