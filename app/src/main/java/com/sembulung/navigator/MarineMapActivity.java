@@ -66,6 +66,10 @@ public class MarineMapActivity extends Activity implements LocationListener {
     private String lastSafetyKey="";
     private static final String BATHY_PREFS="sembulung_bathymetry";
     private static final String BATHY_AREAS="areas";
+    private static final int REQ_EXPORT_MB=4401;
+    private int exportRadiusKm;
+    private double exportLat,exportLon;
+    private int exportZoom;
 
     private int sourceMode=0; // 0 auto, 1 device GPS, 2 NMEA
 
@@ -382,12 +386,56 @@ public class MarineMapActivity extends Activity implements LocationListener {
                     +"\nWaktu: "+sec+" detik");
             if(done>=total){
                 saveBathymetryArea(radiusKm,total);
+                exportRadiusKm=radiusKm;
+                exportLat=map.centerLatitude();
+                exportLon=map.centerLongitude();
+                exportZoom=map.zoomLevel();
                 text.append("\n\n✓ Area kontur tersimpan untuk penggunaan offline.");
+                if(dialog.getButton(AlertDialog.BUTTON_POSITIVE)==null){
+                    dialog.setButton(AlertDialog.BUTTON_POSITIVE,"EXPORT MBTILES",(d,w)->startMbtilesExport());
+                    dialog.getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(0xff00c8ff);
+                }
                 return;
             }
             handler.postDelayed(poll[0],700L);
         };
         handler.post(poll[0]);
+    }
+
+    private void startMbtilesExport(){
+        Intent i=new Intent(Intent.ACTION_CREATE_DOCUMENT);
+        i.addCategory(Intent.CATEGORY_OPENABLE);
+        i.setType("application/x-sqlite3");
+        i.putExtra(Intent.EXTRA_TITLE,String.format(Locale.US,
+                "SEMBULUNG_BATHY_Z%d_%dkm.mbtiles",exportZoom,exportRadiusKm));
+        startActivityForResult(i,REQ_EXPORT_MB);
+    }
+
+    @Override protected void onActivityResult(int requestCode,int resultCode,Intent data){
+        super.onActivityResult(requestCode,resultCode,data);
+        if(requestCode!=REQ_EXPORT_MB||resultCode!=RESULT_OK||data==null||data.getData()==null)return;
+        final android.net.Uri uri=data.getData();
+        Toast.makeText(this,"Membuat MBTiles…",Toast.LENGTH_SHORT).show();
+        new Thread(()->{
+            File tmp=new File(getCacheDir(),"export_bathymetry.mbtiles");
+            try{
+                int tiles=BathymetryMbtilesExporter.export(tmp,tileLoader,exportLat,exportLon,exportRadiusKm,exportZoom);
+                try(java.io.InputStream in=new java.io.FileInputStream(tmp);
+                    java.io.OutputStream out=getContentResolver().openOutputStream(uri)){
+                    if(out==null)throw new java.io.IOException("Lokasi penyimpanan tidak tersedia");
+                    byte[] buf=new byte[32768];int n;
+                    while((n=in.read(buf))>0)out.write(buf,0,n);
+                    out.flush();
+                }
+                tmp.delete();
+                runOnUiThread(()->Toast.makeText(this,"✓ MBTiles tersimpan: "+tiles+" tile",Toast.LENGTH_LONG).show());
+            }catch(Exception e){
+                tmp.delete();
+                runOnUiThread(()->new AlertDialog.Builder(this).setTitle("Export MBTiles gagal")
+                        .setMessage(String.valueOf(e.getMessage()))
+                        .setPositiveButton("OK",null).show());
+            }
+        }).start();
     }
 
     private void saveBathymetryArea(int radiusKm,int total){
@@ -397,6 +445,8 @@ public class MarineMapActivity extends Activity implements LocationListener {
             JSONObject o=new JSONObject();
             o.put("zoom",map.zoomLevel());
             o.put("radius_km",radiusKm);
+            o.put("lat",map.centerLatitude());
+            o.put("lon",map.centerLongitude());
             o.put("tiles",total);
             o.put("saved_at",System.currentTimeMillis());
             JSONArray b=new JSONArray();
