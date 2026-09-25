@@ -42,11 +42,11 @@ public class SembulungSplashActivity extends Activity {
         root.addView(credit);
 
         setContentView(root);
-        new Handler(Looper.getMainLooper()).postDelayed(this::next, 850L);
+        new Handler(Looper.getMainLooper()).postDelayed(this::next, 450L);
     }
 
     private void next() {
-        Class<?> target = ActivationManager.isActivated(this) ? HomeActivity.class : ActivationActivity.class;
+        Class<?> target = ActivationManager.isActivated(this) ? MarineMapActivity.class : ActivationActivity.class;
         startActivity(new Intent(this, target));
         finish();
     }
