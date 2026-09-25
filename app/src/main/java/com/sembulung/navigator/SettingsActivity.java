@@ -26,10 +26,10 @@ public class SettingsActivity extends Activity {
     private void build(){
         root.removeAllViews();
         root.addView(text("PENGATURAN",20,true));
-        TextView sub=text("Navigasi, peta, sonar, AIS dan tampilan perangkat",13,false);
+        TextView sub=text("Chartplotter • navigasi • sonar • AIS • perangkat",11,false);
         sub.setPadding(0,dp(3),0,dp(10));root.addView(sub);
 
-        root.addView(section("TAMPILAN"));
+        root.addView(section("TAMPILAN & CHARTPLOTTER"));
         addSwitch("Layar tetap hidup","Mencegah layar mati selama aplikasi aktif",AppSettings.keepScreenOn(this),
                 v->AppSettings.keepScreenOn(this,v));
         addSwitch("Pusatkan otomatis ke kapal","Peta mengikuti posisi kapal sampai digeser manual",AppSettings.autoCenter(this),
