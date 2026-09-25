@@ -23,7 +23,7 @@ public class MarineMapView extends View {
     private int z=5;
     private double clat=-2.5,clon=118;
     private Double lat,lon,hdg;
-    private boolean nmea,seamarks=true,moved=false;
+    private boolean nmea,seamarks=true,globalBathymetry=true,moved=false;
     private float lx,ly;
     private boolean drag;
 
@@ -81,6 +81,23 @@ public class MarineMapView extends View {
 
     public void zoom(int d){z=Math.max(3,Math.min(18,z+d));invalidate();}
     public void seamarks(boolean v){seamarks=v;invalidate();}
+    public void globalBathymetry(boolean v){globalBathymetry=v;invalidate();}
+    public boolean globalBathymetry(){return globalBathymetry;}
+    public int visibleBathymetryTileCount(){
+        double cx=wx(clon),cy=wy(clat),L=cx-getWidth()/2d,U=cy-getHeight()/2d;
+        int n=1<<z,x0=(int)Math.floor(L/T),x1=(int)Math.floor((L+getWidth())/T),
+                y0=(int)Math.floor(U/T),y1=(int)Math.floor((U+getHeight())/T);
+        return Math.max(0,x1-x0+1)*Math.max(0,y1-y0+1);
+    }
+    public void downloadVisibleBathymetry(){
+        double cx=wx(clon),cy=wy(clat),L=cx-getWidth()/2d,U=cy-getHeight()/2d;
+        int n=1<<z,x0=(int)Math.floor(L/T)-1,x1=(int)Math.floor((L+getWidth())/T)+1,
+                y0=(int)Math.floor(U/T)-1,y1=(int)Math.floor((U+getHeight())/T)+1;
+        for(int y=y0;y<=y1;y++){
+            if(y<0||y>=n)continue;
+            for(int x=x0;x<=x1;x++)l.prefetch(MarineTileLoader.LAYER_BATHY,z,x,y);
+        }
+    }
     public boolean seamarks(){return seamarks;}
 
     public void sonarChart(SonarChartEngine.Chart chart){sonarChart=chart;invalidate();}
@@ -128,6 +145,7 @@ public class MarineMapView extends View {
     @Override protected void onDraw(Canvas c){
         super.onDraw(c);
         layer(c,MarineTileLoader.LAYER_OSM);
+        if(globalBathymetry)layer(c,MarineTileLoader.LAYER_BATHY);
         if(sonarEnabled&&sonarChart!=null&&sonarShading)drawSonarShading(c);
         if(seamarks)layer(c,MarineTileLoader.LAYER_SEAMARK);
         if(sonarEnabled&&sonarChart!=null&&sonarContours)drawSonarContours(c);
