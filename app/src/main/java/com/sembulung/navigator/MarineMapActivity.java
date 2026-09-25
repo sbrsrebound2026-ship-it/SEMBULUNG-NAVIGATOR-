@@ -171,7 +171,7 @@ public class MarineMapActivity extends Activity implements LocationListener {
         Button route=navButton("ROUTE"); route.setOnClickListener(v->startActivity(new Intent(this,NavigationActivity.class))); bottom.addView(route,navLp());
         Button sonar=navButton("SONAR"); sonar.setOnClickListener(v->startActivity(new Intent(this,NmeaActivity.class))); bottom.addView(sonar,navLp());
         Button ais=navButton("AIS"); ais.setOnClickListener(v->startActivity(new Intent(this,AisActivity.class))); bottom.addView(ais,navLp());
-        Button menu=navButton("MENU"); menu.setOnClickListener(v->layerMenu()); bottom.addView(menu,navLp());
+        Button menu=navButton("MENU"); menu.setOnClickListener(v->appMenu()); bottom.addView(menu,navLp());
         FrameLayout.LayoutParams p=new FrameLayout.LayoutParams(-1,dp(56)); p.gravity=Gravity.BOTTOM; p.setMargins(dp(8),0,dp(8),dp(8)); root.addView(bottom,p);
         sourceButton=floating("AUTO",9); sourceButton.setOnClickListener(v->{sourceMode=(sourceMode+1)%3;refresh();});
         FrameLayout.LayoutParams sp=new FrameLayout.LayoutParams(dp(72),dp(38)); sp.gravity=Gravity.START|Gravity.BOTTOM; sp.setMargins(dp(12),0,0,dp(76)); root.addView(sourceButton,sp);
