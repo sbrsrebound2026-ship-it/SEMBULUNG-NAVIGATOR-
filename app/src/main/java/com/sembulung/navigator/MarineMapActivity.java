@@ -313,25 +313,34 @@ public class MarineMapActivity extends Activity implements LocationListener {
 
     private void showBathymetryDownloadMenu(){
         String[] options={
+                "Download radius 1 km",
+                "Download radius 5 km",
+                "Download radius 10 km",
+                "Download radius 25 km",
+                "Download radius 50 km",
                 "Download area tampilan",
-                "Download area 5×5 tile",
-                "Download area 11×11 tile",
                 "Lihat area tersimpan"
         };
         new AlertDialog.Builder(this)
                 .setTitle("DOWNLOAD KONTUR KEDALAMAN")
                 .setMessage("Sumber: bathymetry GEBCO yang dirender OpenSeaMap. Terpisah dari sounding sonar lokal.")
                 .setItems(options,(d,which)->{
-                    if(which==3){showSavedBathymetryAreas();return;}
-                    int radius=which==0?0:which==1?2:5;
-                    int total=map.downloadBathymetryArea(radius);
-                    showBathymetryProgress(radius,total);
+                    if(which==6){showSavedBathymetryAreas();return;}
+                    if(which==5){
+                        int total=map.downloadVisibleBathymetry();
+                        showBathymetryProgressKm(0,total);
+                        return;
+                    }
+                    int[] radiiKm={1,5,10,25,50};
+                    int radiusKm=radiiKm[which];
+                    int total=map.downloadBathymetryRadiusKm(radiusKm);
+                    showBathymetryProgressKm(radiusKm,total);
                 })
                 .setNegativeButton("Batal",null)
                 .show();
     }
 
-    private void showBathymetryProgress(int radius,int total){
+    private void showBathymetryProgressKm(int radiusKm,int total){
         final TextView text=chip("Menyiapkan download…",13,true);
         text.setPadding(dp(8),dp(8),dp(8),dp(8));
         final AlertDialog dialog=new AlertDialog.Builder(this)
@@ -344,16 +353,18 @@ public class MarineMapActivity extends Activity implements LocationListener {
         final long started=System.currentTimeMillis();
         final Runnable[] poll=new Runnable[1];
         poll[0]=()->{
-            int done=map.cachedBathymetryAreaCount(radius);
+            int done=map.cachedBathymetryRadiusKmCount(radiusKm);
             int pct=total<=0?100:Math.min(100,(done*100)/total);
             long sec=Math.max(1,(System.currentTimeMillis()-started)/1000L);
-            text.setText("Area: "+(radius==0?"tampilan":(radius==2?"5×5 tile":"11×11 tile"))
+            String area=radiusKm<=0?"tampilan":radiusKm+" km dari pusat peta";
+            text.setText("Area: "+area
+                    +"\nPusat: "+String.format(Locale.US,"%.5f°, %.5f°",map.centerLatitude(),map.centerLongitude())
                     +"\nZoom: "+map.zoomLevel()
                     +"\nProgress: "+done+" / "+total+" tile ("+pct+"%)"
                     +"\nWaktu: "+sec+" detik");
             if(done>=total){
-                saveBathymetryArea(radius,total);
-                text.append("\n\n✓ Area tersimpan untuk penggunaan offline.");
+                saveBathymetryArea(radiusKm,total);
+                text.append("\n\n✓ Area kontur tersimpan untuk penggunaan offline.");
                 return;
             }
             handler.postDelayed(poll[0],700L);
@@ -361,13 +372,13 @@ public class MarineMapActivity extends Activity implements LocationListener {
         handler.post(poll[0]);
     }
 
-    private void saveBathymetryArea(int radius,int total){
+    private void saveBathymetryArea(int radiusKm,int total){
         try{
             android.content.SharedPreferences p=getSharedPreferences(BATHY_PREFS,MODE_PRIVATE);
             JSONArray a=new JSONArray(p.getString(BATHY_AREAS,"[]"));
             JSONObject o=new JSONObject();
             o.put("zoom",map.zoomLevel());
-            o.put("radius",radius);
+            o.put("radius_km",radiusKm);
             o.put("tiles",total);
             o.put("saved_at",System.currentTimeMillis());
             JSONArray b=new JSONArray();
@@ -391,6 +402,7 @@ public class MarineMapActivity extends Activity implements LocationListener {
                 long ts=o.optLong("saved_at",0);
                 String date=new java.text.SimpleDateFormat("dd/MM/yyyy HH:mm",Locale.US).format(new java.util.Date(ts));
                 b.append("• Zoom ").append(o.optInt("zoom",0))
+                 .append(" • radius ").append(o.optInt("radius_km",0)).append(" km")
                  .append(" • ").append(o.optInt("tiles",0)).append(" tile")
                  .append(" • ").append(date).append("\n");
             }
