@@ -141,159 +141,51 @@ public class MarineMapActivity extends Activity implements LocationListener {
     }
 
     private void buildHeader(FrameLayout root){
-        LinearLayout top=new LinearLayout(this);
-        top.setOrientation(LinearLayout.VERTICAL);
-        top.setPadding(dp(10),dp(10),dp(10),0);
-
-        title=chip("SEMBULUNG MARINE • UNIFIED MAP",14,true);
-        title.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);
-        top.addView(title,new LinearLayout.LayoutParams(-1,dp(38)));
-
+        LinearLayout top=new LinearLayout(this); top.setOrientation(LinearLayout.VERTICAL); top.setPadding(dp(12),dp(8),dp(12),0);
+        LinearLayout brand=new LinearLayout(this); brand.setOrientation(LinearLayout.VERTICAL);
+        title=chip("SEMBULUNG NAVIGATOR",17,true); title.setGravity(Gravity.START|Gravity.CENTER_VERTICAL); title.setBackgroundColor(Color.TRANSPARENT); title.setPadding(0,0,0,0);
+        brand.addView(title,new LinearLayout.LayoutParams(-1,dp(30)));
+        TextView sub=chip("Navigasi Laut Presisi",10,false); sub.setGravity(Gravity.START|Gravity.CENTER_VERTICAL); sub.setTextColor(0xffb9c9d6); sub.setBackgroundColor(Color.TRANSPARENT); sub.setPadding(0,0,0,0);
+        brand.addView(sub,new LinearLayout.LayoutParams(-1,dp(20))); top.addView(brand,new LinearLayout.LayoutParams(-1,dp(50)));
         LinearLayout row=new LinearLayout(this);
-        gpsChip=chip("GPS --",9,true);
-        nmeaChip=chip("NMEA --",9,true);
-        depthChip=chip("DEPTH --",9,true);
-        aisChip=chip("AIS --",9,true);
-        row.addView(gpsChip,chipLp());
-        row.addView(nmeaChip,chipLp());
-        row.addView(depthChip,chipLp());
-        row.addView(aisChip,chipLp());
-        top.addView(row,new LinearLayout.LayoutParams(-1,dp(36)));
-
-        FrameLayout.LayoutParams p=new FrameLayout.LayoutParams(-1,-2);
-        p.gravity=Gravity.TOP;
-        root.addView(top,p);
+        gpsChip=chip("GPS --",8,true); nmeaChip=chip("NMEA --",8,true); depthChip=chip("DEPTH --",8,true); aisChip=chip("AIS --",8,true);
+        nmeaChip.setVisibility(android.view.View.GONE); row.addView(gpsChip,chipLp()); row.addView(depthChip,chipLp()); row.addView(aisChip,chipLp());
+        top.addView(row,new LinearLayout.LayoutParams(-1,dp(30)));
+        FrameLayout.LayoutParams p=new FrameLayout.LayoutParams(-1,-2); p.gravity=Gravity.TOP; root.addView(top,p);
     }
 
     private void buildRightToolbar(FrameLayout root){
-        LinearLayout right=new LinearLayout(this);
-        right.setOrientation(LinearLayout.VERTICAL);
-
-        Button layers=floating("LAYER",9);
-        layers.setOnClickListener(v->layerMenu());
-        right.addView(layers,square());
-
-        bathyButton=floating("BATHY",9);
-        bathyButton.setOnClickListener(v->{
-            boolean on=!map.globalBathymetry();
-            map.globalBathymetry(on);
-            bathyButton.setText(on?"BATHY":"B OFF");
-            Toast.makeText(this,on?"Bathymetry GEBCO/OpenSeaMap aktif":"Bathymetry dimatikan",Toast.LENGTH_SHORT).show();
-        });
-        bathyButton.setOnLongClickListener(v->{
-            showBathymetryDownloadMenu();
-            return true;
-        });
-        right.addView(bathyButton,square());
-
-        Button search=floating("CARI",9);
-        search.setOnClickListener(v->startActivity(new Intent(this,SearchCoordinateActivity.class)));
-        right.addView(search,square());
-
-        Button download=floating("UNDUH",9);
-        download.setOnClickListener(v->startActivity(new Intent(this,OfflineMapActivity.class)));
-        right.addView(download,square());
-
-        Button plus=floating("+",22);
-        plus.setOnClickListener(v->map.zoom(1));
-        right.addView(plus,square());
-
-        Button center=floating("◎",20);
-        center.setOnClickListener(v->recenter());
-        right.addView(center,square());
-
-        Button minus=floating("−",22);
-        minus.setOnClickListener(v->map.zoom(-1));
-        right.addView(minus,square());
-
-        sonarButton=floating("SC",10);
-        sonarButton.setOnClickListener(v->{
-            sonarEnabled=!sonarEnabled;
-            AppSettings.sonarEnabled(this,sonarEnabled);
-            applySonarLayers();
-        });
-        sonarButton.setOnLongClickListener(v->{
-            sonarMenu();
-            return true;
-        });
-        right.addView(sonarButton,square());
-
-        FrameLayout.LayoutParams p=new FrameLayout.LayoutParams(-2,-2);
-        p.gravity=Gravity.END|Gravity.CENTER_VERTICAL;
-        p.setMargins(0,dp(52),dp(8),dp(70));
-        root.addView(right,p);
+        LinearLayout right=new LinearLayout(this); right.setOrientation(LinearLayout.VERTICAL); right.setGravity(Gravity.CENTER_HORIZONTAL);
+        Button layers=floating("LAYERS",8); layers.setOnClickListener(v->layerMenu()); right.addView(layers,square());
+        Button search=floating("⌕",22); search.setOnClickListener(v->startActivity(new Intent(this,SearchCoordinateActivity.class))); right.addView(search,square());
+        Button center=floating("◎",20); center.setOnClickListener(v->recenter()); right.addView(center,square());
+        Button plus=floating("+",22); plus.setOnClickListener(v->map.zoom(1)); right.addView(plus,square());
+        Button minus=floating("−",22); minus.setOnClickListener(v->map.zoom(-1)); right.addView(minus,square());
+        FrameLayout.LayoutParams p=new FrameLayout.LayoutParams(-2,-2); p.gravity=Gravity.END|Gravity.CENTER_VERTICAL; p.setMargins(0,dp(8),dp(10),dp(76)); root.addView(right,p);
     }
 
     private void buildBottomNavigation(FrameLayout root){
-        LinearLayout bottom=new LinearLayout(this);
-        bottom.setOrientation(LinearLayout.HORIZONTAL);
-        bottom.setPadding(dp(6),dp(3),dp(6),dp(3));
-        bottom.setBackground(bg());
-
-        Button peta=navButton("PETA");
-        peta.setEnabled(false);
-        bottom.addView(peta,navLp());
-
-        Button route=navButton("RUTE");
-        route.setOnClickListener(v->startActivity(new Intent(this,NavigationActivity.class)));
-        bottom.addView(route,navLp());
-
-        Button sonar=navButton("SONAR");
-        sonar.setOnClickListener(v->startActivity(new Intent(this,NmeaActivity.class)));
-        bottom.addView(sonar,navLp());
-
-        Button ais=navButton("AIS");
-        ais.setOnClickListener(v->startActivity(new Intent(this,AisActivity.class)));
-        bottom.addView(ais,navLp());
-
-        Button settings=navButton("SET");
-        settings.setOnClickListener(v->startActivity(new Intent(this,SettingsActivity.class)));
-        bottom.addView(settings,navLp());
-
-        FrameLayout.LayoutParams p=new FrameLayout.LayoutParams(-1,dp(58));
-        p.gravity=Gravity.BOTTOM;
-        p.setMargins(dp(8),0,dp(8),dp(8));
-        root.addView(bottom,p);
-
-        sourceButton=floating("AUTO",11);
-        sourceButton.setOnClickListener(v->{
-            sourceMode=(sourceMode+1)%3;
-            refresh();
-        });
-        FrameLayout.LayoutParams sp=new FrameLayout.LayoutParams(dp(86),dp(40));
-        sp.gravity=Gravity.START|Gravity.BOTTOM;
-        sp.setMargins(dp(12),0,0,dp(196));
-        root.addView(sourceButton,sp);
+        LinearLayout bottom=new LinearLayout(this); bottom.setOrientation(LinearLayout.HORIZONTAL); bottom.setPadding(dp(5),dp(4),dp(5),dp(4)); bottom.setBackground(bg());
+        Button peta=navButton("CHART"); peta.setEnabled(false); bottom.addView(peta,navLp());
+        Button route=navButton("ROUTE"); route.setOnClickListener(v->startActivity(new Intent(this,NavigationActivity.class))); bottom.addView(route,navLp());
+        Button sonar=navButton("SONAR"); sonar.setOnClickListener(v->startActivity(new Intent(this,NmeaActivity.class))); bottom.addView(sonar,navLp());
+        Button ais=navButton("AIS"); ais.setOnClickListener(v->startActivity(new Intent(this,AisActivity.class))); bottom.addView(ais,navLp());
+        Button menu=navButton("MENU"); menu.setOnClickListener(v->layerMenu()); bottom.addView(menu,navLp());
+        FrameLayout.LayoutParams p=new FrameLayout.LayoutParams(-1,dp(56)); p.gravity=Gravity.BOTTOM; p.setMargins(dp(8),0,dp(8),dp(8)); root.addView(bottom,p);
+        sourceButton=floating("AUTO",9); sourceButton.setOnClickListener(v->{sourceMode=(sourceMode+1)%3;refresh();});
+        FrameLayout.LayoutParams sp=new FrameLayout.LayoutParams(dp(72),dp(38)); sp.gravity=Gravity.START|Gravity.BOTTOM; sp.setMargins(dp(12),0,0,dp(76)); root.addView(sourceButton,sp);
     }
 
     private void buildGuidanceOverlay(FrameLayout root){
-        LinearLayout panel=new LinearLayout(this);
-        panel.setOrientation(LinearLayout.VERTICAL);
-        panel.setPadding(dp(10),dp(7),dp(10),dp(7));
-        panel.setBackground(bg());
-
-        routeGuidance=chip("NAVIGASI • belum ada tujuan aktif",11,true);
-        routeGuidance.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);
-        panel.addView(routeGuidance,new LinearLayout.LayoutParams(-1,dp(34)));
-
-        safetyGuidance=chip("SAFETY • normal",10,true);
-        safetyGuidance.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);
-        safetyGuidance.setTextColor(0xff8fffc0);
-        panel.addView(safetyGuidance,new LinearLayout.LayoutParams(-1,dp(30)));
-
+        LinearLayout panel=new LinearLayout(this); panel.setOrientation(LinearLayout.VERTICAL); panel.setPadding(dp(10),dp(5),dp(10),dp(5)); panel.setBackground(bg());
+        routeGuidance=chip("READY • No active route",10,true); routeGuidance.setGravity(Gravity.START|Gravity.CENTER_VERTICAL); panel.addView(routeGuidance,new LinearLayout.LayoutParams(-1,dp(28)));
+        safetyGuidance=chip("SAFETY • normal",9,true); safetyGuidance.setGravity(Gravity.START|Gravity.CENTER_VERTICAL); safetyGuidance.setTextColor(0xff8fffc0); panel.addView(safetyGuidance,new LinearLayout.LayoutParams(-1,dp(25)));
         LinearLayout controls=new LinearLayout(this);
-        skipWaypointButton=navButton("LEWATI WP");
-        skipWaypointButton.setOnClickListener(v->skipWaypoint());
-        endRouteButton=navButton("AKHIRI RUTE");
-        endRouteButton.setOnClickListener(v->endRoute());
-        controls.addView(skipWaypointButton,new LinearLayout.LayoutParams(0,dp(34),1f));
-        controls.addView(endRouteButton,new LinearLayout.LayoutParams(0,dp(34),1f));
-        panel.addView(controls,new LinearLayout.LayoutParams(-1,dp(36)));
-
-        FrameLayout.LayoutParams p=new FrameLayout.LayoutParams(-1,dp(108));
-        p.gravity=Gravity.BOTTOM;
-        p.setMargins(dp(8),0,dp(8),dp(70));
-        root.addView(panel,p);
+        skipWaypointButton=navButton("SKIP"); skipWaypointButton.setOnClickListener(v->skipWaypoint());
+        endRouteButton=navButton("END ROUTE"); endRouteButton.setOnClickListener(v->endRoute());
+        skipWaypointButton.setVisibility(android.view.View.GONE); endRouteButton.setVisibility(android.view.View.GONE);
+        controls.addView(skipWaypointButton,new LinearLayout.LayoutParams(0,dp(28),1f)); controls.addView(endRouteButton,new LinearLayout.LayoutParams(0,dp(28),1f)); panel.addView(controls,new LinearLayout.LayoutParams(-1,dp(29)));
+        FrameLayout.LayoutParams p=new FrameLayout.LayoutParams(-1,dp(72)); p.gravity=Gravity.BOTTOM; p.setMargins(dp(8),0,dp(8),dp(70)); root.addView(panel,p);
     }
 
     private void skipWaypoint(){
@@ -886,6 +778,8 @@ public class MarineMapActivity extends Activity implements LocationListener {
         boolean routeActive=active>=0&&active<route.size();
         skipWaypointButton.setEnabled(routeActive);
         endRouteButton.setEnabled(routeActive);
+        skipWaypointButton.setVisibility(routeActive?android.view.View.VISIBLE:android.view.View.GONE);
+        endRouteButton.setVisibility(routeActive?android.view.View.VISIBLE:android.view.View.GONE);
 
         RouteGuidanceEngine.Guidance g=null;
         if(routeActive&&lat!=null&&lon!=null){
@@ -1015,28 +909,11 @@ public class MarineMapActivity extends Activity implements LocationListener {
     }
 
     private TextView chip(String text,int sp,boolean bold){
-        TextView v=new TextView(this);
-        v.setText(text);
-        v.setTextColor(Color.WHITE);
-        v.setTextSize(sp);
-        v.setGravity(Gravity.CENTER);
-        v.setPadding(dp(7),dp(3),dp(7),dp(3));
-        if(bold)v.setTypeface(Typeface.DEFAULT_BOLD);
-        v.setBackground(bg());
-        return v;
+        TextView v=new TextView(this); v.setText(text); v.setTextColor(Color.WHITE); v.setTextSize(sp); v.setGravity(Gravity.CENTER); v.setPadding(dp(7),dp(2),dp(7),dp(2)); if(bold)v.setTypeface(Typeface.DEFAULT_BOLD); v.setBackground(bg()); return v;
     }
 
     private Button floating(String text,int sp){
-        Button b=new Button(this);
-        b.setText(text);
-        b.setTextSize(sp);
-        b.setTextColor(Color.WHITE);
-        b.setAllCaps(false);
-        b.setPadding(0,0,0,0);
-        b.setMinWidth(0);
-        b.setMinHeight(0);
-        b.setBackground(bg());
-        return b;
+        Button b=new Button(this); b.setText(text); b.setTextSize(sp); b.setTextColor(Color.WHITE); b.setAllCaps(false); b.setGravity(Gravity.CENTER); b.setPadding(0,0,0,0); b.setMinWidth(0); b.setMinHeight(0); b.setBackground(bg()); return b;
     }
 
     private Button navButton(String text){
@@ -1045,11 +922,7 @@ public class MarineMapActivity extends Activity implements LocationListener {
     }
 
     private GradientDrawable bg(){
-        GradientDrawable d=new GradientDrawable();
-        d.setColor(0xd809213b);
-        d.setCornerRadius(dp(13));
-        d.setStroke(dp(1),0x6659c9f2);
-        return d;
+        GradientDrawable d=new GradientDrawable(); d.setColor(0xd10a2136); d.setCornerRadius(dp(15)); d.setStroke(dp(1),0x6657b9dd); return d;
     }
 
     private LinearLayout.LayoutParams chipLp(){
@@ -1059,15 +932,11 @@ public class MarineMapActivity extends Activity implements LocationListener {
     }
 
     private LinearLayout.LayoutParams square(){
-        LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(dp(58),dp(42));
-        p.setMargins(0,dp(2),0,dp(2));
-        return p;
+        LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(dp(48),dp(46)); p.setMargins(0,dp(3),0,dp(3)); return p;
     }
 
     private LinearLayout.LayoutParams navLp(){
-        LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,-1,1f);
-        p.setMargins(dp(2),0,dp(2),0);
-        return p;
+        LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,-1,1f); p.setMargins(dp(2),0,dp(2),0); return p;
     }
 
     private int dp(int v){
