@@ -25,51 +25,30 @@ public class NmeaActivity extends Activity {
         @Override public void run(){render();handler.postDelayed(this,1000L);}
     };
 
-    @Override protected void onCreate(Bundle b){
+    @Override @Override protected void onCreate(Bundle b){
         super.onCreate(b);
-        ScrollView scroll=new ScrollView(this);scroll.setBackgroundColor(Color.rgb(3,27,61));
-        LinearLayout root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(dp(20),dp(24),dp(20),dp(30));scroll.addView(root,new ScrollView.LayoutParams(-1,-2));
-
-        root.addView(label("SONAR / NMEA • BACKGROUND SERVICE",23,true));
-        TextView sub=label("Satu listener UDP bersama untuk GPS/NMEA, depth/sonar dan AIS",13,false);
-        sub.setPadding(0,dp(6),0,dp(16));root.addView(sub);
-
-        connection=panel("STATUS\nMarine Data Service belum aktif");
-        position=panel("POSISI\n---");depth=panel("DEPTH / SONAR\n---");
-        heading=panel("HEADING\n---");speed=panel("SPEED\n---");
-        stats=panel("DATA\n---");lastSentence=panel("KALIMAT TERAKHIR\n---");
-        root.addView(connection,lp());root.addView(position,lp());root.addView(depth,lp());
-        root.addView(heading,lp());root.addView(speed,lp());root.addView(stats,lp());root.addView(lastSentence,lp());
-
-        root.addView(label("PORT UDP MARINE DATA",13,true),top(16));
-        portInput=new EditText(this);portInput.setInputType(InputType.TYPE_CLASS_NUMBER);
-        portInput.setText(String.valueOf(MarineDataService.DEFAULT_PORT));portInput.setTextColor(Color.WHITE);
-        portInput.setGravity(Gravity.CENTER);root.addView(portInput,lp());
-
+        ScrollView scroll=new ScrollView(this); scroll.setBackgroundColor(Color.rgb(2,20,38));
+        LinearLayout root=new LinearLayout(this); root.setOrientation(LinearLayout.VERTICAL); root.setPadding(dp(16),dp(18),dp(16),dp(22));
+        scroll.addView(root,new ScrollView.LayoutParams(-1,-2));
+        TextView head=label("SONAR & NMEA",20,true); head.setGravity(Gravity.START|Gravity.CENTER_VERTICAL); root.addView(head);
+        TextView sub=label("Marine data service • GPS • depth • AIS",11,false); sub.setGravity(Gravity.START); sub.setTextColor(0xff9fb4c5); root.addView(sub,top(2));
+        connection=panel("SERVICE\nMenunggu koneksi"); root.addView(connection,top(18));
+        position=panel("POSITION\n---"); depth=panel("DEPTH\n---"); heading=panel("HEADING\n---"); speed=panel("SPEED\n---"); stats=panel("DATA\n---"); lastSentence=panel("LAST NMEA\n---");
+        root.addView(position,lp()); root.addView(depth,lp()); root.addView(heading,lp()); root.addView(speed,lp()); root.addView(stats,lp()); root.addView(lastSentence,lp());
+        root.addView(label("UDP PORT",11,true),top(18));
+        portInput=new EditText(this); portInput.setInputType(InputType.TYPE_CLASS_NUMBER); portInput.setText(String.valueOf(MarineDataService.DEFAULT_PORT)); portInput.setTextColor(Color.WHITE); portInput.setGravity(Gravity.CENTER); portInput.setBackground(panelBg()); root.addView(portInput,lp());
         LinearLayout controls=new LinearLayout(this);
-        Button start=button("MULAI SERVICE");start.setOnClickListener(v->startServiceListener());controls.addView(start,half());
-        Button stop=button("STOP");stop.setOnClickListener(v->MarineDataService.stop(this));controls.addView(stop,half());
-        root.addView(controls,lp());
-
-        root.addView(label("UJI NMEA MANUAL",13,true),top(18));
-        manualInput=new EditText(this);manualInput.setTextColor(Color.WHITE);manualInput.setHintTextColor(0xFF94A3B8);
-        manualInput.setHint("$GPRMC,... atau $SDDPT,...");manualInput.setMinLines(2);root.addView(manualInput,lp());
-
-        Button parse=button("PROSES NMEA MANUAL");parse.setOnClickListener(v->processManual());root.addView(parse,lp());
-        Button demo=button("ISI CONTOH DATA");demo.setOnClickListener(v->manualInput.setText(
-                "$GPRMC,123519,A,0830.000,S,11420.000,E,7.5,84.4,230394,,\n$SDDPT,18.7,0.0,\n$HCHDT,92.5,T"));
-        root.addView(demo,lp());
-
-        Button survey=button("SONAR SURVEY CENTER");
-        survey.setOnClickListener(v->startActivity(new Intent(this,SonarSurveyActivity.class)));
-        root.addView(survey,top(14));
-
-        Button map=button("BUKA MARINE MAP");map.setOnClickListener(v->startActivity(new Intent(this,MarineMapActivity.class)));root.addView(map,top(14));
-        Button clear=button("RESET DATA NMEA");clear.setOnClickListener(v->{NmeaDataStore.clear(this);render();});root.addView(clear,lp());
-        Button back=button("KEMBALI");back.setOnClickListener(v->finish());root.addView(back,top(18));
-        setContentView(scroll);
-        requestNotificationPermission();
+        Button start=button("START"); start.setOnClickListener(v->startServiceListener()); controls.addView(start,half());
+        Button stop=button("STOP"); stop.setOnClickListener(v->MarineDataService.stop(this)); controls.addView(stop,half()); root.addView(controls,lp());
+        root.addView(label("MANUAL NMEA TEST",11,true),top(18));
+        manualInput=new EditText(this); manualInput.setTextColor(Color.WHITE); manualInput.setHintTextColor(0xff8095a8); manualInput.setHint("$GPRMC,... / $SDDPT,..."); manualInput.setMinLines(2); manualInput.setBackground(panelBg()); root.addView(manualInput,lp());
+        Button parse=button("PROCESS"); parse.setOnClickListener(v->processManual()); root.addView(parse,lp());
+        Button demo=button("LOAD SAMPLE"); demo.setOnClickListener(v->manualInput.setText("$GPRMC,123519,A,0830.000,S,11420.000,E,7.5,84.4,230394,,\n$SDDPT,18.7,0.0,\n$HCHDT,92.5,T")); root.addView(demo,lp());
+        Button survey=button("SONAR SURVEY"); survey.setOnClickListener(v->startActivity(new Intent(this,SonarSurveyActivity.class))); root.addView(survey,top(18));
+        Button map=button("OPEN CHART"); map.setOnClickListener(v->startActivity(new Intent(this,MarineMapActivity.class))); root.addView(map,lp());
+        Button clear=button("RESET NMEA DATA"); clear.setOnClickListener(v->{NmeaDataStore.clear(this);render();}); root.addView(clear,lp());
+        Button back=button("BACK"); back.setOnClickListener(v->finish()); root.addView(back,top(18));
+        setContentView(scroll); requestNotificationPermission();
     }
 
     private void startServiceListener(){
@@ -121,10 +100,15 @@ public class NmeaActivity extends Activity {
     @Override protected void onResume(){super.onResume();handler.removeCallbacks(refresh);handler.post(refresh);}
     @Override protected void onPause(){handler.removeCallbacks(refresh);super.onPause();}
 
-    private TextView panel(String s){TextView t=label(s,16,true);t.setPadding(dp(12),dp(13),dp(12),dp(13));t.setBackgroundColor(Color.rgb(7,57,94));return t;}
+    private TextView panel(String s){
+        TextView t=label(s,13,true); t.setGravity(Gravity.START|Gravity.CENTER_VERTICAL); t.setPadding(dp(14),dp(10),dp(14),dp(10)); t.setBackground(panelBg()); return t;
+    }
     private TextView label(String s,int sp,boolean bold){TextView t=new TextView(this);t.setText(s);t.setTextColor(Color.WHITE);t.setTextSize(sp);t.setGravity(Gravity.CENTER);if(bold)t.setTypeface(Typeface.DEFAULT_BOLD);return t;}
-    private Button button(String s){Button b=new Button(this);b.setText(s);b.setAllCaps(false);return b;}
-    private LinearLayout.LayoutParams lp(){LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,-2);p.setMargins(0,dp(8),0,0);return p;}
+    private Button button(String s){
+        Button b=new Button(this); b.setText(s); b.setAllCaps(false); b.setTextColor(Color.WHITE); b.setTextSize(12); b.setMinHeight(0); b.setMinWidth(0); b.setPadding(dp(8),0,dp(8),0); b.setBackground(panelBg()); return b;
+    }
+    private LinearLayout.LayoutParams lp(){LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,-2);p.setMargins(0,dp(7),0,0);return p;}
+    private android.graphics.drawable.GradientDrawable panelBg(){android.graphics.drawable.GradientDrawable d=new android.graphics.drawable.GradientDrawable();d.setColor(0xd10a2136);d.setCornerRadius(dp(12));d.setStroke(dp(1),0x4457b9dd);return d;}
     private LinearLayout.LayoutParams top(int m){LinearLayout.LayoutParams p=lp();p.topMargin=dp(m);return p;}
     private LinearLayout.LayoutParams half(){LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,-2,1f);p.setMargins(dp(3),0,dp(3),0);return p;}
     private int dp(int v){return Math.round(v*getResources().getDisplayMetrics().density);}
