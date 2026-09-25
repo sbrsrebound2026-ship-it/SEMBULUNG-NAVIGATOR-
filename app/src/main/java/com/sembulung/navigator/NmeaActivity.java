@@ -25,7 +25,7 @@ public class NmeaActivity extends Activity {
         @Override public void run(){render();handler.postDelayed(this,1000L);}
     };
 
-    @Override @Override protected void onCreate(Bundle b){
+    @Override protected void onCreate(Bundle b){
         super.onCreate(b);
         ScrollView scroll=new ScrollView(this); scroll.setBackgroundColor(Color.rgb(2,20,38));
         LinearLayout root=new LinearLayout(this); root.setOrientation(LinearLayout.VERTICAL); root.setPadding(dp(16),dp(18),dp(16),dp(22));
