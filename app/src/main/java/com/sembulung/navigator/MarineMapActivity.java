@@ -172,9 +172,7 @@ public class MarineMapActivity extends Activity implements LocationListener {
             Toast.makeText(this,on?"Bathymetry GEBCO/OpenSeaMap aktif":"Bathymetry dimatikan",Toast.LENGTH_SHORT).show();
         });
         bathyButton.setOnLongClickListener(v->{
-            int count=map.visibleBathymetryTileCount();
-            map.downloadVisibleBathymetry();
-            Toast.makeText(this,"Mengunduh "+count+" tile bathymetry untuk area tampilan…",Toast.LENGTH_LONG).show();
+            showBathymetryDownloadMenu();
             return true;
         });
         right.addView(bathyButton,square());
@@ -308,6 +306,27 @@ public class MarineMapActivity extends Activity implements LocationListener {
     }
 
     private void menu(){layerMenu();}
+
+    private void showBathymetryDownloadMenu(){
+        String[] options={
+                "Area tampilan saat ini",
+                "Area diperluas • 5×5 tile",
+                "Area diperluas • 11×11 tile"
+        };
+        new AlertDialog.Builder(this)
+                .setTitle("DOWNLOAD KONTUR KEDALAMAN")
+                .setMessage("Sumber: bathymetry GEBCO yang dirender OpenSeaMap. Data ini terpisah dari sounding sonar lokal.")
+                .setItems(options,(d,which)->{
+                    int radius=which==0?0:which==1?2:5;
+                    int count=map.downloadBathymetryArea(radius);
+                    Toast.makeText(
+                            this,
+                            "Download dimulai • "+count+" tile • zoom "+map.zoomLevel(),
+                            Toast.LENGTH_LONG).show();
+                })
+                .setNegativeButton("Batal",null)
+                .show();
+    }
 
     private void layerMenu(){
         String[] items={

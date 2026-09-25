@@ -90,13 +90,29 @@ public class MarineMapView extends View {
         return Math.max(0,x1-x0+1)*Math.max(0,y1-y0+1);
     }
     public void downloadVisibleBathymetry(){
+        downloadBathymetryArea(0);
+    }
+
+    /**
+     * Downloads bathymetry around the current viewport.
+     * radiusTiles=0 means viewport only; 2 and 5 add a 5x5 or 11x11 tile ring.
+     */
+    public int downloadBathymetryArea(int radiusTiles){
         double cx=wx(clon),cy=wy(clat),L=cx-getWidth()/2d,U=cy-getHeight()/2d;
-        int n=1<<z,x0=(int)Math.floor(L/T)-1,x1=(int)Math.floor((L+getWidth())/T)+1,
-                y0=(int)Math.floor(U/T)-1,y1=(int)Math.floor((U+getHeight())/T)+1;
+        int n=1<<z;
+        int x0=(int)Math.floor(L/T)-radiusTiles;
+        int x1=(int)Math.floor((L+getWidth())/T)+radiusTiles;
+        int y0=(int)Math.floor(U/T)-radiusTiles;
+        int y1=(int)Math.floor((U+getHeight())/T)+radiusTiles;
+        int count=0;
         for(int y=y0;y<=y1;y++){
             if(y<0||y>=n)continue;
-            for(int x=x0;x<=x1;x++)l.prefetch(MarineTileLoader.LAYER_BATHY,z,x,y);
+            for(int x=x0;x<=x1;x++){
+                l.prefetch(MarineTileLoader.LAYER_BATHY,z,x,y);
+                count++;
+            }
         }
+        return count;
     }
     public boolean seamarks(){return seamarks;}
 
